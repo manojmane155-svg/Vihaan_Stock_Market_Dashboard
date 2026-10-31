@@ -7,7 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-  <script src="https://s3.tradingview.com/tv.js"></script>
+  <script src="js/lightweight-charts.standalone.production.js"></script>
   <link rel="stylesheet" href="css/styles.css?v=20261030_2130">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1117,7 +1117,7 @@
         </div>
       </div>
 
-      <!-- 2. Angel One TradeOne Chart Hub (Screenshot 2: TradeOne Custom Indicators & Setup) -->
+      <!-- 2. Angel One TradeOne Chart Hub & External Links -->
       <div class="rounded-2xl bg-gradient-to-r from-indigo-950/90 via-[#0d1527] to-slate-950 border-2 border-indigo-500/60 p-3 sm:p-4 shadow-[0_0_25px_rgba(99,102,241,0.25)] flex flex-col sm:flex-row items-center justify-between gap-3">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-400 flex items-center justify-center text-xl shrink-0 shadow-inner">
@@ -1131,16 +1131,16 @@
               </span>
             </div>
             <div class="text-xs text-slate-400 mt-0.5">
-              Analyze in your logged-in Angel One account (SuperTrend 20, 2 &bull; MA 9 &bull; Volume &bull; MACD &bull; ORB)
+              SuperTrend (10, 3) &bull; Moving Average (SMA 9) &bull; Volume &bull; Real-Time NSE Candlesticks
             </div>
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-3 shrink-0">
-          <label class="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none">
-            <input type="checkbox" id="chk-angel-direct" onchange="setInspectMode(this.checked ? 'angelone' : 'modal')" class="rounded border-slate-700 text-indigo-500 focus:ring-indigo-400 bg-slate-900">
-            <span>Always open Angel One on Inspect</span>
-          </label>
+        <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+          <a id="modal-tradingview-direct-btn" href="https://in.tradingview.com" target="_blank" rel="noopener noreferrer" class="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 font-bold text-xs flex items-center gap-1.5 transition-all shadow">
+            <span>📈 View on TradingView</span>
+            <span class="text-xs">↗</span>
+          </a>
           <a id="modal-angel-one-btn" href="https://www.angelone.in/trade/tradeone/chart" target="_blank" rel="noopener noreferrer" class="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-indigo-950/50 transition-all hover:scale-105 active:scale-95">
             <span>🚀 Open in Angel One Chart</span>
             <span class="text-xs">↗</span>
@@ -1148,24 +1148,59 @@
         </div>
       </div>
 
-      <!-- 3. Angel One & TradingView Live Chart Terminal (Directly Embedded in Modal) -->
+      <!-- 3. Authentic TradingView Lightweight Charts NSE Terminal (No 3rd Party Errors or Apple Fallback) -->
       <div class="space-y-2 pt-1">
-        <div class="flex items-center justify-between text-xs px-1">
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 pulse-indicator"></span>
-            <span class="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-              <span>⚡ Angel One Live TradeOne Graph</span>
-              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">Real-Time NSE Terminal</span>
+        <!-- Live OHLCV HUD & Indicator Badges -->
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs px-2 py-1.5 bg-slate-950/80 rounded-xl border border-slate-800/80 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Indicator Legend Badges -->
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-500/50 flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-indicator"></span> SuperTrend (10, 3): <span id="leg-st" class="font-mono">--</span>
+            </span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-500/50 flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> SMA 9: <span id="leg-sma" class="font-mono">--</span>
+            </span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-500/50 flex items-center gap-1">
+              <span>📊</span> Vol: <span id="leg-vol" class="font-mono">--</span>
             </span>
           </div>
-          <div class="flex items-center gap-2 text-slate-400 text-[11px]">
-            <span>SuperTrend (20, 2) &bull; MA 9 &bull; Candlesticks</span>
+
+          <!-- Crosshair Hover OHLC Readout -->
+          <div class="flex items-center gap-2.5 font-mono text-[11px] text-slate-300">
+            <span>O: <span id="leg-open" class="text-white">--</span></span>
+            <span>H: <span id="leg-high" class="text-white">--</span></span>
+            <span>L: <span id="leg-low" class="text-white">--</span></span>
+            <span>C: <span id="leg-close" class="text-emerald-400 font-bold">--</span></span>
+          </div>
+        </div>
+
+        <!-- Timeframe Toolbar -->
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs px-1">
+          <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+            <button class="modal-tf-btn active px-2.5 py-1 rounded bg-cyan-600 text-white font-bold" onclick="setStockTimeframe('1D')">1D</button>
+            <button class="modal-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setStockTimeframe('5D')">5D</button>
+            <button class="modal-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setStockTimeframe('1M')">1M</button>
+            <button class="modal-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setStockTimeframe('6M')">6M</button>
+            <button class="modal-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setStockTimeframe('YTD')">YTD</button>
+            <button class="modal-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setStockTimeframe('1Y')">1Y</button>
+            <button class="modal-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setStockTimeframe('MAX')">MAX</button>
+          </div>
+
+          <div class="text-[11px] text-slate-400 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span>
+            <span>TradingView Engine &bull; Live NSE Intraday Candlesticks</span>
           </div>
         </div>
 
         <!-- Embedded Interactive Terminal Container -->
-        <div id="angel-chart-container" class="h-[460px] sm:h-[500px] w-full relative bg-slate-950 rounded-2xl overflow-hidden border-2 border-indigo-500/50 shadow-[0_0_35px_rgba(99,102,241,0.25)]">
-          <div id="tradingview-live-widget" class="w-full h-full"></div>
+        <div id="angel-chart-container" class="h-[430px] sm:h-[480px] w-full relative bg-slate-950 rounded-2xl overflow-hidden border-2 border-indigo-500/50 shadow-[0_0_35px_rgba(99,102,241,0.25)]">
+          <div id="lw-chart-canvas" class="w-full h-full"></div>
+          <div id="lw-chart-spinner" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center hidden z-20">
+            <div class="flex items-center gap-2.5 text-cyan-400 text-xs font-bold font-mono">
+              <span class="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></span>
+              <span>Loading Live NSE Candlesticks...</span>
+            </div>
+          </div>
         </div>
       </div>
 

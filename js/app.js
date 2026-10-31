@@ -2904,64 +2904,397 @@ function formatTradingViewSymbol(symbol) {
   return sym;
 }
 
-// Directly Embed Angel One & TradingView Live Chart with SuperTrend & Candlesticks in Modal
-function loadAngelOneTradingViewWidget(symbol) {
-  const container = document.getElementById('tradingview-live-widget');
+let currentLwChart = null;
+let currentCandleSeries = null;
+let currentVolumeSeries = null;
+let currentStSeries = null;
+let currentSmaSeries = null;
+
+// Authentic TradingView Lightweight Charts Engine (No 3rd-party restrictions or Apple AAPL fallback)
+async function loadAngelOneTradingViewWidget(symbol, timeframe = '1D') {
+  const container = document.getElementById('lw-chart-canvas');
   if (!container) return;
+
+  const spinner = document.getElementById('lw-chart-spinner');
+  if (spinner) spinner.classList.remove('hidden');
+
+  const cleanSym = (symbol || 'NIFTY').trim().toUpperCase();
+  const tf = (timeframe || state.stockTimeframe || '1D').toUpperCase();
+  state.stockTimeframe = tf;
+
+  // Update timeframe buttons
+  document.querySelectorAll('.modal-tf-btn').forEach(btn => {
+    if (btn.innerText.trim().toUpperCase() === tf) {
+      btn.className = 'modal-tf-btn active px-2.5 py-1 rounded bg-cyan-600 text-white font-bold transition-all';
+    } else {
+      btn.className = 'modal-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white transition-all';
+    }
+  });
+
+  // Update external buttons
+  const tvBtn = document.getElementById('modal-tradingview-direct-btn');
+  if (tvBtn) {
+    tvBtn.href = `https://in.tradingview.com/chart/?symbol=NSE:${encodeURIComponent(cleanSym)}`;
+    tvBtn.title = `Open ${cleanSym} on TradingView`;
+  }
+  const angelBtn = document.getElementById('modal-angel-one-btn');
+  if (angelBtn) {
+    angelBtn.href = `https://www.angelone.in/trade/tradeone/chart`;
+    angelBtn.innerHTML = `<span>🚀 Open ${cleanSym} in Angel One Chart</span> <span class="text-xs">↗</span>`;
+  }
+
+  // 1. Fetch candles from API (/api/chart)
+  let chartData = null;
+  try {
+    const res = await fetch(`${API_BASE}/api/chart?symbol=${encodeURIComponent(cleanSym)}&range=${tf.toLowerCase()}`);
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.candles && json.candles.length > 0) {
+        chartData = json;
+      }
+    }
+  } catch (err) {
+    console.warn('[Chart] API fetch error, falling back to local dataset', err);
+  }
+
+  // Fallback to client generator if offline or empty
+  if (!chartData || !chartData.candles || chartData.candles.length === 0) {
+    chartData = generateClientStockFallback(cleanSym, tf);
+  }
+
+  if (spinner) spinner.classList.add('hidden');
+
+  if (!chartData || !chartData.candles || chartData.candles.length === 0) {
+    container.innerHTML = '<div class="h-full flex items-center justify-center text-xs text-slate-500 font-mono">No candle data available for ' + cleanSym + '</div>';
+    return;
+  }
+
+  // 2. Prepare strictly ascending timestamp candles
+  const rawCandles = chartData.candles;
+  const candleMap = new Map();
+
+  rawCandles.forEach(c => {
+    let t = c.timestamp;
+    if (!t) {
+      if (c.time && typeof c.time === 'string' && c.time.includes(':')) {
+        const today = new Date();
+        const [timePart, ampm] = c.time.split(' ');
+        let [h, m] = timePart.split(':').map(Number);
+        if (ampm === 'PM' && h < 12) h += 12;
+        if (ampm === 'AM' && h === 12) h = 0;
+        today.setHours(h, m, 0, 0);
+        t = Math.floor(today.getTime() / 1000);
+      } else {
+        t = Math.floor(Date.now() / 1000);
+      }
+    } else if (typeof t === 'string') {
+      t = Math.floor(new Date(t).getTime() / 1000);
+    }
+
+    t = Math.floor(Number(t));
+    if (isNaN(t) || t <= 0) return;
+
+    candleMap.set(t, {
+      time: t,
+      open: Number(c.open),
+      high: Number(c.high),
+      low: Number(c.low),
+      close: Number(c.close),
+      volume: Number(c.volume || 0)
+    });
+  });
+
+  const validCandles = Array.from(candleMap.values()).sort((a, b) => a.time - b.time);
+  if (validCandles.length === 0) return;
+
+  // 3. Compute indicators
+  // Volume series data
+  const volData = validCandles.map(c => ({
+    time: c.time,
+    value: c.volume,
+    color: c.close >= c.open ? 'rgba(16, 185, 129, 0.45)' : 'rgba(244, 63, 94, 0.45)'
+  }));
+
+  // SMA 9
+  const smaData = [];
+  const smaPeriod = 9;
+  for (let i = 0; i < validCandles.length; i++) {
+    if (i < smaPeriod - 1) continue;
+    let sum = 0;
+    for (let j = 0; j < smaPeriod; j++) {
+      sum += validCandles[i - j].close;
+    }
+    smaData.push({
+      time: validCandles[i].time,
+      value: parseFloat((sum / smaPeriod).toFixed(2))
+    });
+  }
+
+  // SuperTrend
+  const stData = [];
+  if (chartData.supertrend && chartData.supertrend.values && chartData.supertrend.values.length === rawCandles.length) {
+    for (let i = 0; i < validCandles.length; i++) {
+      const v = chartData.supertrend.values[i];
+      if (v !== undefined && v !== null && !isNaN(v)) {
+        stData.push({
+          time: validCandles[i].time,
+          value: Number(v)
+        });
+      }
+    }
+  } else {
+    const calcST = computeClientSupertrend(validCandles, 10, 3);
+    stData.push(...calcST);
+  }
+
+  // 4. Initialize or recreate LightweightCharts
+  if (currentLwChart) {
+    try {
+      currentLwChart.remove();
+    } catch (e) {}
+    currentLwChart = null;
+  }
   container.innerHTML = '';
 
-  const tvSymbol = formatTradingViewSymbol(symbol);
+  if (typeof LightweightCharts === 'undefined') {
+    console.error('LightweightCharts library is not loaded');
+    return;
+  }
 
-  // If TradingView JS library is available
-  if (typeof TradingView !== 'undefined' && TradingView.widget) {
-    try {
-      new TradingView.widget({
-        "autosize": true,
-        "symbol": tvSymbol,
-        "interval": "5",
-        "timezone": "Asia/Kolkata",
-        "theme": "dark",
-        "style": "1", // 1 = Candlesticks
-        "locale": "in",
-        "toolbar_bg": "#020617",
-        "enable_publishing": false,
-        "allow_symbol_change": true,
-        "container_id": "tradingview-live-widget",
-        "hide_side_toolbar": false,
-        "withdateranges": true,
-        "studies": [
-          "Supertrend@tv-basicstudies",
-          "MASimple@tv-basicstudies",
-          "Volume@tv-basicstudies"
-        ],
-        "overrides": {
-          "paneProperties.background": "#020617",
-          "paneProperties.vertGridProperties.color": "rgba(30, 41, 59, 0.4)",
-          "paneProperties.horzGridProperties.color": "rgba(30, 41, 59, 0.4)",
-          "mainSeriesProperties.candleStyle.upColor": "#10b981",
-          "mainSeriesProperties.candleStyle.downColor": "#f43f5e",
-          "mainSeriesProperties.candleStyle.wickUpColor": "#10b981",
-          "mainSeriesProperties.candleStyle.wickDownColor": "#f43f5e",
-          "mainSeriesProperties.candleStyle.borderUpColor": "#10b981",
-          "mainSeriesProperties.candleStyle.borderDownColor": "#f43f5e"
-        }
-      });
+  const chart = LightweightCharts.createChart(container, {
+    width: container.clientWidth || 800,
+    height: container.clientHeight || 450,
+    layout: {
+      background: { type: 'solid', color: '#020617' },
+      textColor: '#94a3b8',
+      fontSize: 11,
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
+    },
+    grid: {
+      vertLines: { color: 'rgba(30, 41, 59, 0.4)' },
+      horzLines: { color: 'rgba(30, 41, 59, 0.4)' }
+    },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: {
+        color: '#38bdf8',
+        width: 1,
+        style: LightweightCharts.LineStyle.Dashed,
+        labelBackgroundColor: '#0284c7'
+      },
+      horzLine: {
+        color: '#38bdf8',
+        width: 1,
+        style: LightweightCharts.LineStyle.Dashed,
+        labelBackgroundColor: '#0284c7'
+      }
+    },
+    rightPriceScale: {
+      borderColor: '#1e293b',
+      scaleMargins: {
+        top: 0.1,
+        bottom: 0.25
+      }
+    },
+    timeScale: {
+      borderColor: '#1e293b',
+      timeVisible: true,
+      secondsVisible: false
+    }
+  });
+
+  currentLwChart = chart;
+
+  // Volume Series (Underneath)
+  const volSeries = chart.addHistogramSeries({
+    priceFormat: { type: 'volume' },
+    priceScaleId: '',
+    scaleMargins: {
+      top: 0.8,
+      bottom: 0
+    }
+  });
+  volSeries.setData(volData);
+  currentVolumeSeries = volSeries;
+
+  // Candlestick Series
+  const candleSeries = chart.addCandlestickSeries({
+    upColor: '#10b981',
+    downColor: '#f43f5e',
+    borderVisible: false,
+    wickUpColor: '#10b981',
+    wickDownColor: '#f43f5e'
+  });
+  candleSeries.setData(validCandles.map(c => ({
+    time: c.time,
+    open: c.open,
+    high: c.high,
+    low: c.low,
+    close: c.close
+  })));
+  currentCandleSeries = candleSeries;
+
+  // SuperTrend Line Series
+  let stSeries = null;
+  if (stData.length > 0) {
+    stSeries = chart.addLineSeries({
+      color: '#10b981',
+      lineWidth: 2,
+      priceLineVisible: false,
+      title: 'SuperTrend'
+    });
+    stSeries.setData(stData);
+    currentStSeries = stSeries;
+  }
+
+  // SMA 9 Line Series
+  let smaSeries = null;
+  if (smaData.length > 0) {
+    smaSeries = chart.addLineSeries({
+      color: '#f59e0b',
+      lineWidth: 1.5,
+      priceLineVisible: false,
+      title: 'SMA 9'
+    });
+    smaSeries.setData(smaData);
+    currentSmaSeries = smaSeries;
+  }
+
+  // Set latest values in legend
+  const lastCandle = validCandles[validCandles.length - 1];
+  const lastSt = stData.length > 0 ? stData[stData.length - 1].value : null;
+  const lastSma = smaData.length > 0 ? smaData[smaData.length - 1].value : null;
+  const lastVol = lastCandle.volume;
+
+  updateChartLegend(lastCandle.open, lastCandle.high, lastCandle.low, lastCandle.close, lastVol, lastSt, lastSma);
+
+  // Subscribe to crosshair move for live HUD updates
+  chart.subscribeCrosshairMove(param => {
+    if (!param || !param.time || !param.seriesData) {
+      updateChartLegend(lastCandle.open, lastCandle.high, lastCandle.low, lastCandle.close, lastVol, lastSt, lastSma);
       return;
-    } catch (e) {
-      console.warn('[TradingView] Widget constructor failed, using embed fallback', e);
+    }
+    const cData = param.seriesData.get(candleSeries);
+    const vData = param.seriesData.get(volSeries);
+    const sData = stSeries ? param.seriesData.get(stSeries) : null;
+    const mData = smaSeries ? param.seriesData.get(smaSeries) : null;
+
+    if (cData) {
+      updateChartLegend(
+        cData.open,
+        cData.high,
+        cData.low,
+        cData.close,
+        vData ? vData.value : lastVol,
+        sData ? sData.value : lastSt,
+        mData ? mData.value : lastSma
+      );
+    }
+  });
+
+  chart.timeScale().fitContent();
+
+  window.addEventListener('resize', () => {
+    if (currentLwChart && container) {
+      currentLwChart.resize(container.clientWidth, container.clientHeight);
+    }
+  });
+}
+
+function updateChartLegend(o, h, l, c, vol, st, sma) {
+  const elO = document.getElementById('leg-open');
+  const elH = document.getElementById('leg-high');
+  const elL = document.getElementById('leg-low');
+  const elC = document.getElementById('leg-close');
+  const elVol = document.getElementById('leg-vol');
+  const elSt = document.getElementById('leg-st');
+  const elSma = document.getElementById('leg-sma');
+
+  if (elO && o !== undefined) elO.innerText = `₹${Number(o).toFixed(2)}`;
+  if (elH && h !== undefined) elH.innerText = `₹${Number(h).toFixed(2)}`;
+  if (elL && l !== undefined) elL.innerText = `₹${Number(l).toFixed(2)}`;
+  if (elC && c !== undefined) {
+    elC.innerText = `₹${Number(c).toFixed(2)}`;
+    elC.className = (c >= o) ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold';
+  }
+  if (elVol && vol !== undefined) {
+    elVol.innerText = vol >= 1e6 ? `${(vol / 1e6).toFixed(2)}M` : (vol >= 1e3 ? `${(vol / 1e3).toFixed(1)}K` : vol);
+  }
+  if (elSt) {
+    elSt.innerText = (st !== null && st !== undefined) ? `₹${Number(st).toFixed(2)}` : '--';
+  }
+  if (elSma) {
+    elSma.innerText = (sma !== null && sma !== undefined) ? `₹${Number(sma).toFixed(2)}` : '--';
+  }
+}
+
+function computeClientSupertrend(candles, period = 10, multiplier = 3.0) {
+  if (!candles || candles.length < 2) return [];
+  const n = candles.length;
+  const trs = [];
+  for (let i = 0; i < n; i++) {
+    if (i === 0) {
+      trs.push(candles[i].high - candles[i].low);
+    } else {
+      const prevC = candles[i - 1].close;
+      const tr = Math.max(candles[i].high - candles[i].low, Math.abs(candles[i].high - prevC), Math.abs(candles[i].low - prevC));
+      trs.push(tr);
     }
   }
 
-  // Fallback to high-performance embed iframe
-  const iframe = document.createElement('iframe');
-  iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=${encodeURIComponent(tvSymbol)}&interval=5&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=020617&studies=%5B%22Supertrend%40tv-basicstudies%22%2C%22MASimple%40tv-basicstudies%22%2C%22Volume%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Asia%2FKolkata&locale=in`;
-  iframe.style.width = '100%';
-  iframe.style.height = '100%';
-  iframe.style.border = 'none';
-  iframe.setAttribute('allowtransparency', 'true');
-  iframe.setAttribute('scrolling', 'no');
-  iframe.setAttribute('allowfullscreen', 'true');
-  container.appendChild(iframe);
+  const p = Math.min(period, n);
+  const atrs = [];
+  let sumTr = 0;
+  for (let i = 0; i < p; i++) sumTr += trs[i];
+  let atr = sumTr / p;
+
+  for (let i = 0; i < n; i++) {
+    if (i < p - 1) {
+      atrs.push(trs[i]);
+    } else if (i === p - 1) {
+      atrs.push(atr);
+    } else {
+      atr = (atrs[atrs.length - 1] * (p - 1) + trs[i]) / p;
+      atrs.push(atr);
+    }
+  }
+
+  const result = [];
+  let trend = 1;
+  let prevUpper = 0;
+  let prevLower = 0;
+
+  for (let i = 0; i < n; i++) {
+    const c = candles[i];
+    const hl2 = (c.high + c.low) / 2.0;
+    const curAtr = atrs[i];
+    const basicUpper = hl2 + multiplier * curAtr;
+    const basicLower = hl2 - multiplier * curAtr;
+
+    let finalUpper = basicUpper;
+    let finalLower = basicLower;
+
+    if (i > 0) {
+      const prevC = candles[i - 1].close;
+      finalUpper = (basicUpper < prevUpper || prevC > prevUpper) ? basicUpper : prevUpper;
+      finalLower = (basicLower > prevLower || prevC < prevLower) ? basicLower : prevLower;
+      if (trend === 1) {
+        if (c.close < finalLower) trend = -1;
+      } else {
+        if (c.close > finalUpper) trend = 1;
+      }
+    }
+
+    const stVal = (trend === 1) ? finalLower : finalUpper;
+    result.push({
+      time: c.time,
+      value: parseFloat(stVal.toFixed(2))
+    });
+    prevUpper = finalUpper;
+    prevLower = finalLower;
+  }
+
+  return result;
 }
 
 async function openStockModal(symbol, universe = 'nifty50', source = null) {
@@ -3135,8 +3468,10 @@ async function openStockModal(symbol, universe = 'nifty50', source = null) {
 function closeStockModal() {
   const modal = document.getElementById('stock-modal');
   if (modal) modal.classList.add('hidden');
-  const widgetEl = document.getElementById('tradingview-live-widget');
-  if (widgetEl) widgetEl.innerHTML = '';
+  if (currentLwChart) {
+    try { currentLwChart.remove(); } catch(e){}
+    currentLwChart = null;
+  }
   if (state.charts.modalChart) {
     state.charts.modalChart.destroy();
     state.charts.modalChart = null;
@@ -3149,15 +3484,8 @@ function closeStockModal() {
 
 function setStockTimeframe(tf) {
   state.stockTimeframe = tf;
-  document.querySelectorAll('.stock-tf-btn').forEach(btn => {
-    if (btn.innerText.trim().toUpperCase() === tf.toUpperCase()) {
-      btn.className = 'stock-tf-btn active px-2.5 py-1 rounded bg-cyan-600 text-white font-bold transition-all';
-    } else {
-      btn.className = 'stock-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white transition-all';
-    }
-  });
   if (state.currentStockModalSymbol) {
-    loadStockChart(state.currentStockModalSymbol, tf);
+    loadAngelOneTradingViewWidget(state.currentStockModalSymbol, tf);
   }
 }
 
