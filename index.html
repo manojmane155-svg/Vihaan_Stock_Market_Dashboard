@@ -103,6 +103,13 @@
           <span>📥</span>
           <span>CSV</span>
         </button>
+
+        <!-- Angel One Live Chart Quick Launch -->
+        <a href="https://www.angelone.in/trade/tradeone/chart" target="_blank" rel="noopener noreferrer" title="Launch Angel One TradeOne Chart (With Your Saved Indicators)" class="px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/50 text-indigo-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm">
+          <span>⚡</span>
+          <span>Angel One Chart</span>
+          <span class="text-[10px]">↗</span>
+        </a>
       </div>
     </div>
   </header>
@@ -261,7 +268,7 @@
         </div>
         <span class="text-xs text-slate-400">Rule: First Tranche Accumulation Zone</span>
       </div>
-      <div id="buy-spotlight-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2">
+      <div id="buy-spotlight-container" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-2">
         <!-- Rendered dynamically -->
       </div>
     </section>
@@ -1110,7 +1117,38 @@
         </div>
       </div>
 
-      <!-- 2. Google Finance Toolbar: Candle vs Line, SuperTrend, SMA-5, Indicators -->
+      <!-- 2. Angel One TradeOne Chart Hub (Screenshot 2: TradeOne Custom Indicators & Setup) -->
+      <div class="rounded-2xl bg-gradient-to-r from-indigo-950/90 via-[#0d1527] to-slate-950 border-2 border-indigo-500/60 p-3 sm:p-4 shadow-[0_0_25px_rgba(99,102,241,0.25)] flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-400 flex items-center justify-center text-xl shrink-0 shadow-inner">
+            ⚡
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-black text-white tracking-tight">Angel One TradeOne Terminal</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-indicator"></span> Saved Setup Synced
+              </span>
+            </div>
+            <div class="text-xs text-slate-400 mt-0.5">
+              Analyze in your logged-in Angel One account (SuperTrend 20, 2 &bull; MA 9 &bull; Volume &bull; MACD &bull; ORB)
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 shrink-0">
+          <label class="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none">
+            <input type="checkbox" id="chk-angel-direct" onchange="setInspectMode(this.checked ? 'angelone' : 'modal')" class="rounded border-slate-700 text-indigo-500 focus:ring-indigo-400 bg-slate-900">
+            <span>Always open Angel One on Inspect</span>
+          </label>
+          <a id="modal-angel-one-btn" href="https://www.angelone.in/trade/tradeone/chart" target="_blank" rel="noopener noreferrer" class="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-indigo-950/50 transition-all hover:scale-105 active:scale-95">
+            <span>🚀 Open in Angel One Chart</span>
+            <span class="text-xs">↗</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- 3. Google Finance Toolbar: Candle vs Line, SuperTrend, SMA-5, Indicators -->
       <div class="flex flex-wrap items-center justify-between gap-2.5 pt-1">
         <div class="flex flex-wrap items-center gap-2">
           <!-- Chart Mode Switcher -->

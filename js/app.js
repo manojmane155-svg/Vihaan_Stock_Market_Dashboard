@@ -1,3 +1,19 @@
+// Inspect Router: Supports direct Angel One launch or modal inspector
+function handleInspectStock(symbol, universe = 'nifty50', source = 'radar') {
+  const mode = localStorage.getItem('manoj_inspect_mode') || 'modal';
+  if (mode === 'angelone') {
+    window.open('https://www.angelone.in/trade/tradeone/chart', '_blank');
+  } else {
+    openStockModal(symbol, universe, source);
+  }
+}
+
+function setInspectMode(mode) {
+  localStorage.setItem('manoj_inspect_mode', mode);
+  const chk = document.getElementById('chk-angel-direct');
+  if (chk) chk.checked = (mode === 'angelone');
+}
+
 // Vihaan Stock Market Dashboard - Indian Stock Market Live Streaming & Analytics Engine
 // Author: Manoj Mane & Antigravity Pair Programmer
 
@@ -497,34 +513,39 @@ function renderKPIs() {
         const discountText = stock.discount_from_high ? `${stock.discount_from_high}% off 52W High` : '';
 
         const profile = getStockFuturisticProfile(stock.symbol, isNext50 ? 'next50' : 'nifty50', 'radar', stock);
+        const indexLabel = profile.indexTag || (isNext50 ? 'NIFTY NEXT 50' : 'NIFTY 50');
+        const shortIndexTag = isNext50 ? 'NEXT 50' : 'NIFTY 50';
+
         return `
-          <div onclick="openStockModal('${stock.symbol}', '${isNext50 ? 'next50' : 'nifty50'}', 'radar')" class="cursor-pointer group flex flex-col justify-between p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 via-[#0a1122] to-slate-950 border border-cyan-500/40 hover:border-cyan-400 hover:shadow-[0_0_25px_rgba(6,182,212,0.3)] transition-all transform hover:-translate-y-1 relative select-none">
-            <!-- Center Glowing Circular Ring & Stock Emblem (Screenshot replica) -->
-            <div class="flex flex-col items-center text-center my-1">
-              <div class="w-14 h-14 rounded-full border-2 border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.5)] ring-2 ring-cyan-500/25 flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950/60 p-1.5 transition-transform duration-300 group-hover:scale-110">
-                <div class="w-full h-full rounded-full flex flex-col items-center justify-center font-black text-white text-xs tracking-wider bg-gradient-to-br ${profile.bg}">
-                  <span class="text-base leading-none">${profile.emoji}</span>
-                  <span class="text-[8px] font-mono font-bold">${profile.text}</span>
+          <div onclick="handleInspectStock('${stock.symbol}', '${isNext50 ? 'next50' : 'nifty50'}', 'radar')" class="cursor-pointer group p-2.5 sm:p-3 rounded-xl bg-gradient-to-br from-slate-900/90 via-[#0a1122] to-slate-950 border border-cyan-500/40 hover:border-cyan-400 hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all transform hover:-translate-y-0.5 relative select-none flex flex-col justify-between">
+            <!-- Compact Top Row: 36px Glowing Avatar + Symbol + Index Tag -->
+            <div class="flex items-center justify-between gap-1.5">
+              <div class="flex items-center gap-2 min-w-0">
+                <div class="w-8 h-8 rounded-full border border-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.4)] ring-1 ring-cyan-500/30 flex items-center justify-center bg-gradient-to-br ${profile.bg} shrink-0 group-hover:scale-105 transition-transform">
+                  <span class="text-xs leading-none">${profile.emoji}</span>
+                </div>
+                <div class="min-w-0">
+                  <span class="font-black text-white text-xs sm:text-sm tracking-tight truncate block group-hover:text-cyan-300 transition-colors">${stock.symbol}</span>
                 </div>
               </div>
-              <span class="font-black text-white text-base tracking-tight mt-2 group-hover:text-cyan-300 transition-colors">${stock.symbol}</span>
-              <span class="text-[10px] font-bold text-cyan-300 bg-slate-900/90 px-2 py-0.5 rounded-full border border-cyan-500/30 mt-1 whitespace-nowrap">${profile.sector.split('•')[0].trim()}</span>
+              <span class="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-cyan-950/90 text-cyan-300 border border-cyan-500/40 font-mono tracking-tight shrink-0">${shortIndexTag}</span>
             </div>
 
-            <!-- Price & Opportunity Metric -->
-            <div class="text-center my-2 border-t border-slate-800/80 pt-2">
-              <div class="text-[11px] text-slate-400 font-medium">Live Market Price</div>
-              <div class="text-base font-black text-white font-mono mt-0.5">${stock.price ? '₹' + stock.price.toLocaleString('en-IN') : '--'}</div>
-              ${discountText ? `<div class="text-[10px] text-cyan-400 font-bold mt-0.5">${discountText}</div>` : ''}
+            <!-- Compact Inline Price & 52W Discount -->
+            <div class="my-1.5 flex items-baseline justify-between gap-2 border-y border-slate-800/60 py-1">
+              <span class="text-xs sm:text-sm font-black text-white font-mono">${stock.price ? '₹' + stock.price.toLocaleString('en-IN') : '--'}</span>
+              ${discountText ? `<span class="text-[10px] text-cyan-400 font-bold font-mono truncate">${stock.discount_from_high}% off 52W</span>` : ''}
             </div>
 
-            <!-- Bottom RSI & Inspect CTA -->
-            <div class="flex items-center justify-between pt-2 border-t border-slate-800/80">
-              <span class="inline-flex items-center gap-1 font-black text-emerald-400 text-xs">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span>
-                RSI: ${stock.rsi !== null ? stock.rsi : '--'}
+            <!-- Compact Bottom Row: RSI + Inspect (with Angel One routing) -->
+            <div class="flex items-center justify-between gap-1">
+              <span class="inline-flex items-center gap-1 font-black text-emerald-400 text-[11px] font-mono">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-indicator"></span>
+                RSI ${stock.rsi !== null ? stock.rsi : '--'}
               </span>
-              <button onclick="event.stopPropagation(); openStockModal('${stock.symbol}', '${isNext50 ? 'next50' : 'nifty50'}', 'radar')" class="text-[10px] font-bold px-2 py-1 rounded-lg bg-cyan-500 text-slate-950 hover:bg-cyan-400 active:scale-95 transition-all shadow-sm">INSPECT</button>
+              <button onclick="event.stopPropagation(); handleInspectStock('${stock.symbol}', '${isNext50 ? 'next50' : 'nifty50'}', 'radar')" class="text-[10px] font-bold px-2.5 py-0.5 rounded-md bg-cyan-500 text-slate-950 hover:bg-cyan-400 active:scale-95 transition-all shadow-sm flex items-center gap-1">
+                <span>INSPECT</span>
+              </button>
             </div>
           </div>
         `;
@@ -2674,17 +2695,23 @@ function getStockFuturisticProfile(symbol, universe, source, stockMeta = {}) {
   const charCodeSum = sym.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
   const bg = gradients[charCodeSum % gradients.length];
 
-  let sector = `${universe === 'next50' ? 'NIFTY NEXT 50' : 'NIFTY 50'} • Large Cap`;
-  if (source === 'breakout' || source === 'radar') sector = `Momentum Radar • Breakout Candidate`;
-  if (sym.includes('BEES') || sym.includes('ETF') || stockMeta.category) {
-    sector = `${stockMeta.category || 'Index'} • Exchange Traded Fund`;
+  const next50List = (window.NIFTY_NEXT_50_DATA || []).map(x => x.symbol);
+  const isN50Next = universe === 'next50' || next50List.includes(sym);
+  const indexTag = isN50Next ? 'NIFTY NEXT 50' : (sym.includes('BEES') || sym.includes('ETF') ? 'NIFTY ETF' : 'NIFTY 50');
+
+  let sector = indexTag;
+  if (stockMeta.category) {
+    sector = `${stockMeta.category} • ${indexTag}`;
+  } else if (source === 'breakout') {
+    sector = `${indexTag} • Breakout Buy`;
   }
 
   return {
     emoji,
     text: sym.slice(0, 4),
     bg,
-    sector
+    sector,
+    indexTag
   };
 }
 
@@ -2828,7 +2855,18 @@ async function openStockModal(symbol, universe = 'nifty50', source = null) {
       : '--';
   }
 
-  // 7. Show Modal
+  // 7. Sync Angel One TradeOne Launch Button & Checkbox
+  const angelBtn = document.getElementById('modal-angel-one-btn');
+  if (angelBtn) {
+    angelBtn.href = `https://www.angelone.in/trade/tradeone/chart`;
+    angelBtn.innerHTML = `<span>🚀 Open ${symbol} in Angel One Chart</span> <span class="text-xs">↗</span>`;
+  }
+  const chkAngel = document.getElementById('chk-angel-direct');
+  if (chkAngel) {
+    chkAngel.checked = (localStorage.getItem('manoj_inspect_mode') === 'angelone');
+  }
+
+  // 8. Show Modal
   modal.classList.remove('hidden');
 
   // Highlight timeframe button
