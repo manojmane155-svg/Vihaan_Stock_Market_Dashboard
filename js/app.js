@@ -449,8 +449,12 @@ function switchTab(tabId) {
   document.querySelectorAll('.nav-tab').forEach(b => {
     if (b.getAttribute('data-tab') === tabId) {
       b.classList.add('active');
+      b.classList.remove('text-slate-300');
+      b.classList.add('text-cyan-300');
     } else {
       b.classList.remove('active');
+      b.classList.add('text-slate-300');
+      b.classList.remove('text-cyan-300');
     }
   });
 
@@ -4720,4 +4724,15 @@ function exportCurrentTable() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+
+// Developer Modal Handlers (Manoj Mane)
+function openDeveloperModal() {
+  const m = document.getElementById('developer-modal');
+  if (m) m.classList.remove('hidden');
+}
+function closeDeveloperModal() {
+  const m = document.getElementById('developer-modal');
+  if (m) m.classList.add('hidden');
 }

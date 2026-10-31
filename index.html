@@ -17,31 +17,86 @@
 
   <!-- Top Navigation Header -->
   <header class="border-b border-slate-800/80 bg-slate-900/95 sticky top-0 z-40 backdrop-blur-md shadow-lg shadow-black/30">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5 flex flex-wrap items-center justify-between gap-4">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-500 via-emerald-500 to-teal-400 p-0.5 flex items-center justify-center shadow-lg shadow-cyan-500/25">
-          <div class="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
-            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-            </svg>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex flex-col lg:flex-row items-center lg:items-stretch justify-between gap-4">
+      
+      <!-- Left Column: Title (Row 1) & Controls Toolbar (Row 2) -->
+      <div class="flex-1 flex flex-col justify-between gap-3 w-full lg:w-auto">
+        <!-- Row 1: Logo & Title with Shimmer and Futuristic Glowing Accent -->
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-cyan-500 via-emerald-500 to-teal-400 p-0.5 flex items-center justify-center shadow-lg shadow-cyan-500/30 shrink-0 hover:scale-105 transition-all">
+            <div class="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
+              <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+              </svg>
+            </div>
+          </div>
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <h1 class="text-lg sm:text-xl font-black tracking-tight text-white title-shimmer">Vihaan Stock Market Dashboard</h1>
+              <span class="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-emerald-950/90 text-emerald-300 border border-emerald-500/60 shadow-[0_0_10px_rgba(16,185,129,0.3)] flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-indicator"></span>
+                RSI SWING STRATEGY
+              </span>
+            </div>
+            <p class="text-xs text-slate-400">Live Indian Stock Market Analytics &bull; Top 100 NSE &amp; BSE Blue Chips</p>
           </div>
         </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="text-lg font-black tracking-tight text-white">Vihaan Stock Market Dashboard</h1>
-            <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/80">RSI SWING STRATEGY</span>
+
+        <!-- Row 2: Live Controls & Refresh Toolbar (Futuristic Animated Buttons) -->
+        <div class="flex flex-wrap items-center gap-2 sm:gap-2.5">
+          <!-- Live Status Pill -->
+          <div class="btn-futuristic-pop flex items-center gap-2 bg-slate-950/90 border border-slate-800 px-3 py-1.5 rounded-xl text-xs shadow-sm">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span>
+            <span class="text-emerald-400 font-bold tracking-wide uppercase text-[11px]">Live NSE Feed</span>
+            <span id="header-last-updated" class="text-slate-400 border-l border-slate-800 pl-2 text-[11px] font-mono">Checking...</span>
           </div>
-          <p class="text-xs text-slate-400">Live Indian Stock Market Analytics &bull; Top 100 NSE &amp; BSE Blue Chips</p>
+
+          <!-- Auto-Refresh Interval Selector -->
+          <div class="btn-futuristic-pop flex items-center gap-1.5 bg-slate-950/90 border border-slate-800 px-2.5 py-1.5 rounded-xl text-xs shadow-sm">
+            <span class="text-slate-400">⏱️ Auto:</span>
+            <select id="auto-refresh-select" class="bg-transparent text-cyan-300 font-semibold focus:outline-none cursor-pointer">
+              <option value="5" selected>Every 5m</option>
+              <option value="15">Every 15m</option>
+              <option value="30">Every 30m</option>
+              <option value="60">Every 1h</option>
+              <option value="0">Off (Manual)</option>
+            </select>
+            <span id="refresh-countdown" class="text-emerald-400 font-mono text-[11px] font-bold border-l border-slate-800 pl-1.5" title="Next automatic live market refresh">5:00</span>
+          </div>
+
+          <!-- Manual Live Refresh Button -->
+          <button id="btn-refresh-live" onclick="triggerLiveRefresh()" class="btn-futuristic-pop px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-slate-950 text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-emerald-950/50">
+            <span id="refresh-spinner" class="inline-block transition-transform">🔄</span>
+            <span id="refresh-button-text">Refresh Live Data</span>
+          </button>
+
+          <!-- Optional Upload Excel -->
+          <label for="excel-file-input" title="Optional: Upload custom spreadsheet" class="btn-futuristic-pop cursor-pointer px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 text-xs font-medium text-slate-300 flex items-center gap-1 transition-all shadow-sm">
+            <span>📁</span>
+            <span>Excel</span>
+            <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden">
+          </label>
+
+          <!-- Export CSV -->
+          <button onclick="exportCurrentTable()" class="btn-futuristic-pop px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 text-slate-200 text-xs font-medium flex items-center gap-1 transition-all shadow-sm">
+            <span>📥</span>
+            <span>CSV</span>
+          </button>
+
+          <!-- Angel One Live Chart Quick Launch -->
+          <a href="https://www.angelone.in/trade/tradeone/chart" target="_blank" rel="noopener noreferrer" title="Launch Angel One TradeOne Chart (With Your Saved Indicators)" class="btn-futuristic-pop px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600/40 via-indigo-600/30 to-cyan-600/40 hover:from-indigo-600/60 hover:to-cyan-600/60 border border-indigo-500/60 text-indigo-200 hover:text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-indigo-950/50">
+            <span>⚡</span>
+            <span>Angel One Chart</span>
+            <span class="text-[10px]">↗</span>
+          </a>
         </div>
       </div>
 
-      <!-- Center: Live Modern Digital Watch & Big Developer Profile (Manoj Mane) -->
-      <div class="flex items-center gap-4 sm:gap-5">
+      <!-- Right Column: Digital Watch Widget & Large Developer Profile (Spans full height till the bottom line) -->
+      <div class="flex items-center gap-4 sm:gap-6 shrink-0 justify-center lg:justify-end w-full lg:w-auto">
         <!-- Modern Futuristic Digital Watch Widget -->
-        <div class="relative bg-gradient-to-br from-slate-900/95 via-slate-950 to-slate-900/95 rounded-2xl px-4 py-2 border border-cyan-500/40 shadow-xl shadow-cyan-950/40 backdrop-blur-xl flex flex-col items-center justify-center select-none shrink-0 min-w-[180px] group hover:border-cyan-400 transition-all">
-          <!-- Top subtle neon line -->
+        <div class="relative bg-gradient-to-br from-slate-900/95 via-slate-950 to-slate-900/95 rounded-2xl px-4 py-2 border border-cyan-500/40 shadow-xl shadow-cyan-950/40 backdrop-blur-xl flex flex-col items-center justify-center select-none shrink-0 min-w-[170px] group hover:border-cyan-400 transition-all">
           <div class="absolute top-0 inset-x-4 h-[2px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent"></div>
-          
           <div class="flex items-baseline justify-center gap-2 font-mono leading-none">
             <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator shrink-0"></span>
             <span id="digital-clock-time" class="text-xl sm:text-2xl font-black font-mono tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-teal-300 drop-shadow-[0_0_12px_rgba(34,211,238,0.5)]">02:40:30</span>
@@ -54,64 +109,23 @@
           </div>
         </div>
 
-        <!-- Developer Profile: Big Photo extending till the below line -->
+        <!-- Developer Profile: Big Photo filling vertical space till the bottom line & Popup Animated Badge -->
         <div class="flex flex-col items-center justify-center shrink-0 text-center select-none">
-          <div class="relative group">
-            <img src="assets/manoj_mane.jpg?v=3" alt="Manoj Mane" class="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover object-[center_25%] border-2 sm:border-3 border-emerald-400 shadow-2xl shadow-emerald-950/80 ring-4 ring-cyan-500/30 group-hover:scale-105 group-hover:ring-cyan-400 transition-all">
-            <span class="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-slate-900 shadow" title="Active Developer"></span>
+          <div class="relative group cursor-pointer" onclick="openDeveloperModal()" title="Click to view Developer Profile">
+            <img src="assets/manoj_mane.jpg?v=4" alt="Manoj Mane" class="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover object-[center_22%] border-2 sm:border-3 border-emerald-400 shadow-[0_0_25px_rgba(16,185,129,0.5)] ring-4 ring-cyan-500/40 group-hover:scale-105 group-hover:ring-cyan-300 group-hover:shadow-[0_0_35px_rgba(6,182,212,0.8)] transition-all duration-300">
+            <span class="absolute bottom-1 right-2 w-4 h-4 rounded-full bg-emerald-400 border-2 border-slate-950 shadow-[0_0_10px_#10b981] pulse-indicator" title="Active Developer &bull; Manoj Mane"></span>
           </div>
-          <span class="text-[10px] sm:text-[11px] font-extrabold text-white tracking-tight mt-1 whitespace-nowrap bg-slate-950/90 px-2.5 py-0.5 rounded-full border border-slate-700/80 shadow-md">Developed by (Manoj Mane)</span>
+          <!-- Developed by (Manoj Mane) Popup & Animated Badge -->
+          <div onclick="openDeveloperModal()" class="developer-badge-pop mt-1.5 cursor-pointer" title="Click to view Developer Credentials">
+            <span class="text-[11px] sm:text-xs font-black tracking-tight text-white whitespace-nowrap bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-3 py-0.5 rounded-full border border-cyan-500/60 shadow-[0_0_15px_rgba(6,182,212,0.4)] flex items-center gap-1.5 hover:border-cyan-300 hover:shadow-[0_0_25px_rgba(6,182,212,0.7)] transition-all">
+              <span class="text-xs">⚡</span>
+              <span>Developed by <strong class="text-cyan-300 font-extrabold">(Manoj Mane)</strong></span>
+              <span class="text-xs">🚀</span>
+            </span>
+          </div>
         </div>
       </div>
 
-      <!-- Live Controls & Refresh Toolbar -->
-      <div class="flex flex-wrap items-center gap-2.5">
-        <!-- Live Status Pill -->
-        <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-lg text-xs">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span>
-          <span class="text-emerald-400 font-semibold tracking-wide uppercase text-[11px]">Live NSE Feed</span>
-          <span id="header-last-updated" class="text-slate-400 border-l border-slate-800 pl-2 text-[11px]">Checking...</span>
-        </div>
-
-        <!-- Auto-Refresh Interval Selector -->
-        <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-800 px-2.5 py-1.5 rounded-lg text-xs">
-          <span class="text-slate-400">⏱️ Auto:</span>
-          <select id="auto-refresh-select" class="bg-transparent text-cyan-300 font-semibold focus:outline-none cursor-pointer">
-            <option value="5" selected>Every 5m</option>
-            <option value="15">Every 15m</option>
-            <option value="30">Every 30m</option>
-            <option value="60">Every 1h</option>
-            <option value="0">Off (Manual)</option>
-          </select>
-          <span id="refresh-countdown" class="text-emerald-400 font-mono text-[11px] font-bold border-l border-slate-800 pl-1.5" title="Next automatic live market refresh">5:00</span>
-        </div>
-
-        <!-- Manual Live Refresh Button -->
-        <button id="btn-refresh-live" onclick="triggerLiveRefresh()" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-emerald-900/40">
-          <span id="refresh-spinner" class="inline-block transition-transform">🔄</span>
-          <span id="refresh-button-text">Refresh Live Data</span>
-        </button>
-
-        <!-- Optional Upload Excel -->
-        <label for="excel-file-input" title="Optional: Upload custom spreadsheet" class="cursor-pointer px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-300 flex items-center gap-1 transition-all">
-          <span>📁</span>
-          <span>Excel</span>
-          <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden">
-        </label>
-
-        <!-- Export CSV -->
-        <button onclick="exportCurrentTable()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium flex items-center gap-1 transition-all">
-          <span>📥</span>
-          <span>CSV</span>
-        </button>
-
-        <!-- Angel One Live Chart Quick Launch -->
-        <a href="https://www.angelone.in/trade/tradeone/chart" target="_blank" rel="noopener noreferrer" title="Launch Angel One TradeOne Chart (With Your Saved Indicators)" class="px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/50 text-indigo-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm">
-          <span>⚡</span>
-          <span>Angel One Chart</span>
-          <span class="text-[10px]">↗</span>
-        </a>
-      </div>
     </div>
   </header>
 
@@ -283,48 +297,48 @@
     </div>
 
     <!-- Navigation Tabs (Consolidated Breakout Screener + RSI Sheets) -->
-    <div class="border-b border-slate-800 flex overflow-x-auto gap-2 text-sm font-medium">
-      <button data-tab="breakout_buys" class="nav-tab active px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap bg-emerald-950/40 text-emerald-300 font-bold border-b-2 border-emerald-500">
+    <div class="bg-slate-950/70 p-1.5 rounded-2xl border border-slate-800/80 shadow-inner flex overflow-x-auto gap-2 text-sm font-medium backdrop-blur-md">
+      <button data-tab="breakout_buys" class="nav-tab active px-4 py-2.5 rounded-xl flex items-center gap-2 whitespace-nowrap text-cyan-300 font-bold transition-all">
         <span>🚀</span>
         <span>Best Time for Buy (16)</span>
       </button>
-      <button data-tab="market_movers" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+      <button data-tab="market_movers" class="nav-tab px-4 py-2.5 rounded-xl flex items-center gap-2 whitespace-nowrap text-slate-300 hover:text-white transition-all">
         <span>⚡</span>
         <span>Market Movers (Gainers &amp; Losers)</span>
       </button>
-      <button data-tab="top500" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+      <button data-tab="top500" class="nav-tab px-4 py-2.5 rounded-xl flex items-center gap-2 whitespace-nowrap text-slate-300 hover:text-white transition-all">
         <span>📊</span>
         <span>Top 500 Breakout Stocks (501)</span>
       </button>
-      <button data-tab="etf_shop" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+      <button data-tab="etf_shop" class="nav-tab px-4 py-2.5 rounded-xl flex items-center gap-2 whitespace-nowrap text-slate-300 hover:text-white transition-all">
         <span>🛒</span>
         <span>ETF Shop: Today's Buy (75)</span>
       </button>
-      <button data-tab="nifty50" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+      <button data-tab="nifty50" class="nav-tab px-4 py-2.5 rounded-xl flex items-center gap-2 whitespace-nowrap text-slate-300 hover:text-white transition-all">
         <span>📊</span>
         <span>Sheet 1: RSI Nifty 50</span>
       </button>
-      <button data-tab="nifty50_calc" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+      <button data-tab="nifty50_calc" class="nav-tab px-4 py-2.5 rounded-xl flex items-center gap-2 whitespace-nowrap text-slate-300 hover:text-white transition-all">
         <span>⚙️</span>
         <span>Sheet 2: Nifty 50 Calculations</span>
       </button>
-      <button data-tab="next50" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+      <button data-tab="next50" class="nav-tab px-4 py-2.5 rounded-xl flex items-center gap-2 whitespace-nowrap text-slate-300 hover:text-white transition-all">
         <span>📈</span>
         <span>Sheet 3: RSI Nifty Next 50</span>
       </button>
-      <button data-tab="next50_calc" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+      <button data-tab="next50_calc" class="nav-tab px-4 py-2.5 rounded-xl flex items-center gap-2 whitespace-nowrap text-slate-300 hover:text-white transition-all">
         <span>⚙️</span>
         <span>Sheet 4: Next 50 Calculations</span>
       </button>
-      <button data-tab="market_dates" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+      <button data-tab="market_dates" class="nav-tab px-4 py-2.5 rounded-xl flex items-center gap-2 whitespace-nowrap text-slate-300 hover:text-white transition-all">
         <span>📅</span>
         <span>Sheet 5: Market Dates</span>
       </button>
-      <button data-tab="compounding" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+      <button data-tab="compounding" class="nav-tab px-4 py-2.5 rounded-xl flex items-center gap-2 whitespace-nowrap text-slate-300 hover:text-white transition-all">
         <span>💰</span>
         <span>₹5k &rarr; ₹2Cr Calculator</span>
       </button>
-      <button data-tab="strategy" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+      <button data-tab="strategy" class="nav-tab px-4 py-2.5 rounded-xl flex items-center gap-2 whitespace-nowrap text-slate-300 hover:text-white transition-all">
         <span>📖</span>
         <span>Strategy &amp; Rules</span>
       </button>
@@ -1400,6 +1414,52 @@
       <!-- Search Results List -->
       <div id="watchlist-search-results" class="max-h-60 overflow-y-auto space-y-1.5 pr-1">
         <!-- Filtered list of stocks with 1-click + Add button -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Developer Profile Modal: Manoj Mane -->
+  <div id="developer-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md hidden transition-all">
+    <div class="relative w-full max-w-md bg-gradient-to-br from-slate-900 via-[#0d1627] to-slate-950 border-2 border-cyan-500/60 rounded-3xl p-6 shadow-[0_0_50px_rgba(6,182,212,0.4)] text-center">
+      <!-- Close Button -->
+      <button onclick="closeDeveloperModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 w-8 h-8 rounded-full flex items-center justify-center transition-all font-bold">&times;</button>
+      
+      <!-- Big Photo with Neon Aura -->
+      <div class="relative inline-block mx-auto mb-4">
+        <img src="assets/manoj_mane.jpg?v=4" alt="Manoj Mane" class="w-28 h-28 rounded-full object-cover object-[center_22%] border-3 border-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.6)] ring-4 ring-cyan-500/50">
+        <span class="absolute bottom-1 right-2 w-4 h-4 rounded-full bg-emerald-400 border-2 border-slate-950 pulse-indicator"></span>
+      </div>
+
+      <h3 class="text-xl font-black text-white title-shimmer">Manoj Mane</h3>
+      <p class="text-xs font-bold text-cyan-400 mt-1 uppercase tracking-wider">Creator &bull; Lead Systems Architect</p>
+      
+      <div class="mt-4 p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 space-y-2 text-left">
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400">Project:</span>
+          <span class="text-white font-bold">Vihaan Stock Market Dashboard</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400">Core Strategy:</span>
+          <span class="text-emerald-400 font-bold">Wilder RSI &bull; SuperTrend &bull; SMA Breakouts</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400">Feed Engines:</span>
+          <span class="text-cyan-300 font-bold">NSE / BSE Real-Time &bull; Angel One Synced</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400">Interactive Charts:</span>
+          <span class="text-indigo-400 font-bold">TradingView Lightweight Charts™</span>
+        </div>
+      </div>
+
+      <div class="mt-5 flex items-center justify-center gap-3">
+        <a href="https://www.angelone.in/trade/tradeone/chart" target="_blank" rel="noopener noreferrer" class="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold text-xs shadow-lg shadow-cyan-950/50 flex items-center gap-1.5 transition-all hover:scale-105">
+          <span>⚡ Angel One Live Hub</span>
+          <span>↗</span>
+        </a>
+        <button onclick="closeDeveloperModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-all hover:scale-105">
+          Close
+        </button>
       </div>
     </div>
   </div>
