@@ -1,0 +1,38 @@
+name: Update Market Data
+
+on:
+  schedule:
+    # Run every 30 minutes between 03:45 UTC and 10:30 UTC (09:15 AM to 04:00 PM IST), Monday to Friday
+    - cron: '*/30 4-10 * * 1-5'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
+
+jobs:
+  refresh-market-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests openpyxl
+
+      - name: Fetch Live Market Data
+        run: |
+          python live_feed.py
+
+      - name: Commit and Push Updated Data
+        run: |
+          git config --global user.name "MarketBot"
+          git config --global user.email "bot@users.noreply.github.com"
+          git add live_market_data.json js/data.js
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update live market feed [skip ci]" && git push)

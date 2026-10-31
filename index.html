@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vihaan Stock Market Dashboard - Live Indian Stock Market Analytics</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="css/styles.css?v=20261030_2130">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-[#0b0f19] text-slate-100 min-h-screen">
+
+  <!-- Top Navigation Header -->
+  <header class="border-b border-slate-800/80 bg-slate-900/95 sticky top-0 z-40 backdrop-blur-md shadow-lg shadow-black/30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-500 via-emerald-500 to-teal-400 p-0.5 flex items-center justify-center shadow-lg shadow-cyan-500/25">
+          <div class="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+            </svg>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-black tracking-tight text-white">Vihaan Stock Market Dashboard</h1>
+            <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/80">RSI SWING STRATEGY</span>
+          </div>
+          <p class="text-xs text-slate-400">Live Indian Stock Market Analytics &bull; Top 100 NSE &amp; BSE Blue Chips</p>
+        </div>
+      </div>
+
+      <!-- Center: Live Modern Digital Watch & Big Developer Profile (Manoj Mane) -->
+      <div class="flex items-center gap-4 sm:gap-5">
+        <!-- Modern Futuristic Digital Watch Widget -->
+        <div class="relative bg-gradient-to-br from-slate-900/95 via-slate-950 to-slate-900/95 rounded-2xl px-4 py-2 border border-cyan-500/40 shadow-xl shadow-cyan-950/40 backdrop-blur-xl flex flex-col items-center justify-center select-none shrink-0 min-w-[180px] group hover:border-cyan-400 transition-all">
+          <!-- Top subtle neon line -->
+          <div class="absolute top-0 inset-x-4 h-[2px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent"></div>
+          
+          <div class="flex items-baseline justify-center gap-2 font-mono leading-none">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator shrink-0"></span>
+            <span id="digital-clock-time" class="text-xl sm:text-2xl font-black font-mono tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-teal-300 drop-shadow-[0_0_12px_rgba(34,211,238,0.5)]">02:40:30</span>
+            <span id="digital-clock-ampm" class="text-[10px] sm:text-xs font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-sm shadow-emerald-950">AM</span>
+          </div>
+          <div class="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5 mt-1 tracking-tight">
+            <span class="text-xs">📅</span>
+            <span id="digital-clock-date" class="whitespace-nowrap">Saturday, Oct 31, 2026</span>
+            <span class="text-[9px] font-bold text-cyan-400 bg-cyan-950/90 px-1 py-0.2 rounded border border-cyan-800/60">IST</span>
+          </div>
+        </div>
+
+        <!-- Developer Profile: Big Photo extending till the below line -->
+        <div class="flex flex-col items-center justify-center shrink-0 text-center select-none">
+          <div class="relative group">
+            <img src="assets/manoj_mane.jpg?v=3" alt="Manoj Mane" class="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover object-[center_25%] border-2 sm:border-3 border-emerald-400 shadow-2xl shadow-emerald-950/80 ring-4 ring-cyan-500/30 group-hover:scale-105 group-hover:ring-cyan-400 transition-all">
+            <span class="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-slate-900 shadow" title="Active Developer"></span>
+          </div>
+          <span class="text-[10px] sm:text-[11px] font-extrabold text-white tracking-tight mt-1 whitespace-nowrap bg-slate-950/90 px-2.5 py-0.5 rounded-full border border-slate-700/80 shadow-md">Developed by (Manoj Mane)</span>
+        </div>
+      </div>
+
+      <!-- Live Controls & Refresh Toolbar -->
+      <div class="flex flex-wrap items-center gap-2.5">
+        <!-- Live Status Pill -->
+        <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-lg text-xs">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span>
+          <span class="text-emerald-400 font-semibold tracking-wide uppercase text-[11px]">Live NSE Feed</span>
+          <span id="header-last-updated" class="text-slate-400 border-l border-slate-800 pl-2 text-[11px]">Checking...</span>
+        </div>
+
+        <!-- Auto-Refresh Interval Selector -->
+        <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-800 px-2.5 py-1.5 rounded-lg text-xs">
+          <span class="text-slate-400">⏱️ Auto:</span>
+          <select id="auto-refresh-select" class="bg-transparent text-cyan-300 font-semibold focus:outline-none cursor-pointer">
+            <option value="5" selected>Every 5m</option>
+            <option value="15">Every 15m</option>
+            <option value="30">Every 30m</option>
+            <option value="60">Every 1h</option>
+            <option value="0">Off (Manual)</option>
+          </select>
+          <span id="refresh-countdown" class="text-emerald-400 font-mono text-[11px] font-bold border-l border-slate-800 pl-1.5" title="Next automatic live market refresh">5:00</span>
+        </div>
+
+        <!-- Manual Live Refresh Button -->
+        <button id="btn-refresh-live" onclick="triggerLiveRefresh()" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-emerald-900/40">
+          <span id="refresh-spinner" class="inline-block transition-transform">🔄</span>
+          <span id="refresh-button-text">Refresh Live Data</span>
+        </button>
+
+        <!-- Optional Upload Excel -->
+        <label for="excel-file-input" title="Optional: Upload custom spreadsheet" class="cursor-pointer px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-300 flex items-center gap-1 transition-all">
+          <span>📁</span>
+          <span>Excel</span>
+          <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden">
+        </label>
+
+        <!-- Export CSV -->
+        <button onclick="exportCurrentTable()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium flex items-center gap-1 transition-all">
+          <span>📥</span>
+          <span>CSV</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Indian Markets Live Indices Bar (NSE & BSE Real-Time) -->
+    <section class="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-slate-900/90 to-amber-950/30 border border-purple-500/30 shadow-2xl backdrop-blur-md">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-3.5 pb-2.5 border-b border-slate-800/80">
+        <div class="flex items-center gap-3">
+          <h2 class="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
+            Indian Markets
+          </h2>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-600/60 shadow-sm">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span>
+            NSE / BSE LIVE
+          </span>
+        </div>
+        <div class="flex items-center gap-3 text-xs">
+          <span id="indices-last-updated" class="text-slate-300 font-mono text-[11px]">Updated: --:--:--</span>
+          <div class="flex items-center gap-1 bg-slate-950/80 p-0.5 rounded-lg border border-slate-700">
+            <button id="btn-view-indices" onclick="setMarketView('indices')" class="px-2.5 py-1 rounded-md bg-white text-slate-900 font-bold text-[11px] shadow transition-all">Major Indices</button>
+            <button id="btn-view-watchlist" onclick="setMarketView('watchlist')" class="px-2.5 py-1 rounded-md text-slate-400 hover:text-white text-[11px] transition-all flex items-center gap-1.5">
+              <span>Watchlist</span>
+              <span id="watchlist-count-badge" class="px-1.5 py-0.2 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-700/60 text-[9px] font-bold">6</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Cards Grid (6 Columns on desktop for all 6 Major Indices including GIFT NIFTY, or Watchlist) -->
+      <div id="indices-cards-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <!-- Rendered dynamically via js/app.js -->
+      </div>
+    </section>
+
+    <!-- Live Market Movers: Top Gainers, Losers & Top Intraday Gainers -->
+    <section id="market-movers-section" class="glass-panel p-4 sm:p-5 rounded-2xl border border-slate-700/60 bg-gradient-to-br from-slate-900/90 via-slate-900/60 to-purple-950/30 shadow-2xl space-y-4">
+      <!-- Header with Index Filter Buttons -->
+      <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">⚡</span>
+          <div>
+            <h2 class="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
+              Live Market Movers
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">Real-Time NSE / BSE</span>
+            </h2>
+            <p class="text-xs text-slate-400">Live Top Gainers, Top Losers, and Top Intraday Surges across Indian benchmark indices</p>
+          </div>
+        </div>
+
+        <!-- Index Filter Buttons -->
+        <div class="flex items-center gap-1.5 bg-slate-950/90 p-1 rounded-xl border border-slate-800 text-xs font-semibold overflow-x-auto">
+          <button onclick="setMoversFilter('all')" id="btn-mover-all" class="mover-filter-btn px-3 py-1.5 rounded-lg bg-purple-600 text-white font-bold shadow transition-all">🌐 All Indices</button>
+          <button onclick="setMoversFilter('nifty50')" id="btn-mover-nifty50" class="mover-filter-btn px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition-all">⚡ NIFTY 50</button>
+          <button onclick="setMoversFilter('banknifty')" id="btn-mover-banknifty" class="mover-filter-btn px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition-all">🏦 BANK NIFTY</button>
+          <button onclick="setMoversFilter('sensex')" id="btn-mover-sensex" class="mover-filter-btn px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition-all">🏛️ SENSEX</button>
+          <button onclick="setMoversFilter('niftyit')" id="btn-mover-niftyit" class="mover-filter-btn px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition-all">💻 NIFTY IT</button>
+        </div>
+      </div>
+
+      <!-- 3 Columns Grid: Top Gainers | Top Losers | Top Intraday Gainers -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Top Gainers Card -->
+        <div class="p-4 rounded-xl bg-slate-950/80 border border-emerald-500/30 flex flex-col justify-between">
+          <div class="flex items-center justify-between pb-2 mb-3 border-b border-emerald-900/40">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 pulse-indicator"></span>
+              <h3 class="text-xs font-black text-emerald-300 uppercase tracking-wider flex items-center gap-1">
+                🚀 Top Gainers
+              </h3>
+            </div>
+            <span id="gainers-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-700/50">Top % Gain</span>
+          </div>
+          <div id="top-gainers-list" class="space-y-2">
+            <!-- Rendered dynamically via js/app.js -->
+          </div>
+        </div>
+
+        <!-- Top Losers Card -->
+        <div class="p-4 rounded-xl bg-slate-950/80 border border-rose-500/30 flex flex-col justify-between">
+          <div class="flex items-center justify-between pb-2 mb-3 border-b border-rose-900/40">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-400 pulse-indicator"></span>
+              <h3 class="text-xs font-black text-rose-300 uppercase tracking-wider flex items-center gap-1">
+                🔻 Top Losers
+              </h3>
+            </div>
+            <span id="losers-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-950 text-rose-400 border border-rose-700/50">Top % Dip</span>
+          </div>
+          <div id="top-losers-list" class="space-y-2">
+            <!-- Rendered dynamically via js/app.js -->
+          </div>
+        </div>
+
+        <!-- Top Intraday Gainers Card -->
+        <div class="p-4 rounded-xl bg-slate-950/80 border border-amber-500/30 flex flex-col justify-between">
+          <div class="flex items-center justify-between pb-2 mb-3 border-b border-amber-900/40">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-400 pulse-indicator"></span>
+              <h3 class="text-xs font-black text-amber-300 uppercase tracking-wider flex items-center gap-1">
+                ⚡ Top Intraday Gainers
+              </h3>
+            </div>
+            <span id="intraday-gainers-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-950 text-amber-400 border border-amber-700/50">Surge Leaders</span>
+          </div>
+          <div id="top-intraday-gainers-list" class="space-y-2">
+            <!-- Rendered dynamically via js/app.js -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- KPI Summary & Buy Radar -->
+    <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+      <div class="kpi-card p-4 rounded-xl">
+        <div class="text-xs text-slate-400 font-medium">Total Stocks</div>
+        <div id="kpi-total-stocks" class="text-2xl font-bold text-white mt-1">100</div>
+        <div class="text-[11px] text-slate-400 mt-1">Nifty 50 + Next 50</div>
+      </div>
+
+      <div class="kpi-card p-4 rounded-xl border-emerald-500/20 bg-emerald-950/10">
+        <div class="text-xs text-emerald-400 font-medium flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span>
+          Active Buy Signals
+        </div>
+        <div id="kpi-buy-signals" class="text-2xl font-bold text-emerald-400 mt-1">0</div>
+        <div class="text-[11px] text-emerald-300/80 mt-1">RSI &le; 35 Accumulation</div>
+      </div>
+
+      <div class="kpi-card p-4 rounded-xl">
+        <div class="text-xs text-slate-400 font-medium">Wait / Holding</div>
+        <div id="kpi-wait-signals" class="text-2xl font-bold text-slate-200 mt-1">0</div>
+        <div class="text-[11px] text-slate-400 mt-1">RSI &gt; 35 Range</div>
+      </div>
+
+      <div class="kpi-card p-4 rounded-xl border-rose-500/20 bg-rose-950/10">
+        <div class="text-xs text-rose-400 font-medium">Extreme Oversold</div>
+        <div id="kpi-extreme-oversold" class="text-2xl font-bold text-rose-400 mt-1">0</div>
+        <div class="text-[11px] text-rose-300/80 mt-1">RSI &le; 30 Deep Dip</div>
+      </div>
+
+      <div class="kpi-card p-4 rounded-xl col-span-2 sm:col-span-1">
+        <div class="text-xs text-cyan-400 font-medium">Average Market RSI</div>
+        <div id="kpi-avg-rsi" class="text-2xl font-bold text-cyan-400 mt-1">--</div>
+        <div class="text-[11px] text-slate-400 mt-1">14-Day Index Momentum</div>
+      </div>
+    </section>
+
+    <!-- Buy Signal Radar Card -->
+    <section class="glass-panel p-4 rounded-xl border border-emerald-900/40 bg-gradient-to-r from-emerald-950/20 via-slate-900/40 to-slate-900/40">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 pulse-indicator"></span>
+          <h2 class="text-sm font-bold text-white uppercase tracking-wider">Top Buy Opportunities Radar (RSI &le; 35)</h2>
+        </div>
+        <span class="text-xs text-slate-400">Rule: First Tranche Accumulation Zone</span>
+      </div>
+      <div id="buy-spotlight-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- Live Auto-Sync Status Notification Banner -->
+    <div id="excel-dropzone" class="p-3 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs bg-slate-900/80 border border-slate-800">
+      <div class="flex items-center gap-2 text-slate-300">
+        <span class="text-emerald-400 text-sm">⚡</span>
+        <span><strong>Automated Live Market Sync Active:</strong> Automatically pulls daily prices and computes 14-day Wilder RSI directly from live NSE market feeds. No Excel sheet upload needed!</span>
+      </div>
+      <div id="upload-status" class="text-emerald-400 font-medium">Live Feed Connected</div>
+    </div>
+
+    <!-- Navigation Tabs (Consolidated Breakout Screener + RSI Sheets) -->
+    <div class="border-b border-slate-800 flex overflow-x-auto gap-2 text-sm font-medium">
+      <button data-tab="breakout_buys" class="nav-tab active px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap bg-emerald-950/40 text-emerald-300 font-bold border-b-2 border-emerald-500">
+        <span>🚀</span>
+        <span>Best Time for Buy (16)</span>
+      </button>
+      <button data-tab="market_movers" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+        <span>⚡</span>
+        <span>Market Movers (Gainers &amp; Losers)</span>
+      </button>
+      <button data-tab="top500" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+        <span>📊</span>
+        <span>Top 500 Breakout Stocks (501)</span>
+      </button>
+      <button data-tab="etf_shop" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+        <span>🛒</span>
+        <span>ETF Shop: Today's Buy (75)</span>
+      </button>
+      <button data-tab="nifty50" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+        <span>📊</span>
+        <span>Sheet 1: RSI Nifty 50</span>
+      </button>
+      <button data-tab="nifty50_calc" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+        <span>⚙️</span>
+        <span>Sheet 2: Nifty 50 Calculations</span>
+      </button>
+      <button data-tab="next50" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+        <span>📈</span>
+        <span>Sheet 3: RSI Nifty Next 50</span>
+      </button>
+      <button data-tab="next50_calc" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+        <span>⚙️</span>
+        <span>Sheet 4: Next 50 Calculations</span>
+      </button>
+      <button data-tab="market_dates" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+        <span>📅</span>
+        <span>Sheet 5: Market Dates</span>
+      </button>
+      <button data-tab="compounding" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+        <span>💰</span>
+        <span>₹5k &rarr; ₹2Cr Calculator</span>
+      </button>
+      <button data-tab="strategy" class="nav-tab px-4 py-2.5 rounded-t-lg flex items-center gap-2 whitespace-nowrap">
+        <span>📖</span>
+        <span>Strategy &amp; Rules</span>
+      </button>
+    </div>
+
+    <!-- TAB: BEST TIME FOR BUY SCREENER (16 STOCKS) -->
+    <div id="tab-content-breakout_buys" class="tab-content space-y-6">
+      
+      <!-- Expert AI Advisory Banner: Which one should I buy? -->
+      <section class="glass-panel p-5 rounded-2xl border border-emerald-500/40 bg-gradient-to-br from-emerald-950/40 via-slate-900/90 to-slate-950/90 shadow-2xl">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-emerald-900/50">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🎯</span>
+            <div>
+              <h2 class="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
+                Which Stock Should You Buy? &mdash; Strategic Breakdown
+              </h2>
+              <p class="text-xs text-slate-300">Manoj Mane Consolidated Moving Average Breakout Analysis across Top 500 NSE Stocks</p>
+            </div>
+          </div>
+          <span class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500 text-slate-950 shadow-md">
+            16 Stocks Triggered "Best Time for Buy"
+          </span>
+        </div>
+
+        <!-- 3 Strategic Buying Categories -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Category 1: Safest Institutional Blue Chips -->
+          <div class="p-4 rounded-xl bg-slate-900/80 border border-emerald-500/30 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-900/60 text-emerald-300">Tier 1 &bull; Lowest Risk</span>
+                <span class="text-xs font-bold text-emerald-400">🔥 Top Pick</span>
+              </div>
+              <h3 class="text-sm font-extrabold text-white flex items-center gap-1.5">
+                <span>L&amp;T (LT)</span> &amp; <span>Hero MotoCorp</span>
+              </h3>
+              <p class="text-xs text-slate-300 mt-2 leading-relaxed">
+                <strong>Why Buy:</strong> High-conviction Nifty 50 market leaders with pristine balance sheets. L&amp;T (~₹3,845) has all 5 DMAs coiled within 4.2% with a record ₹5.2 Lakh Cr order book. Hero MotoCorp (~₹5,151) has an ultra-tight 2.38% DMA convergence and 19.4% discount from its 52W high.
+              </p>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-slate-800 text-[11px] text-emerald-400 font-semibold flex items-center justify-between">
+              <span>Risk: Minimal</span>
+              <span>Target: +12% to +20%</span>
+            </div>
+          </div>
+
+          <!-- Category 2: Tightest Coiled Springs -->
+          <div class="p-4 rounded-xl bg-slate-900/80 border border-cyan-500/30 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-cyan-900/60 text-cyan-300">Tier 2 &bull; Imminent Breakout</span>
+                <span class="text-xs font-bold text-cyan-400">⚡ Tightest Coil</span>
+              </div>
+              <h3 class="text-sm font-extrabold text-white flex items-center gap-1.5">
+                <span>Petronet LNG</span> &amp; <span>GAIL India</span>
+              </h3>
+              <p class="text-xs text-slate-300 mt-2 leading-relaxed">
+                <strong>Why Buy:</strong> <em>Petronet LNG (~₹287)</em> is the <strong>#1 tightest consolidated stock</strong> in the entire 500 universe (Max spread: 2.01%, Avg spread: 1.06%). Together with <em>GAIL (~₹168)</em>, both offer defensive energy monopolies, strong cash flows, and high dividend yields ready for an upside explosion.
+              </p>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-slate-800 text-[11px] text-cyan-400 font-semibold flex items-center justify-between">
+              <span>Risk: Low</span>
+              <span>Target: +10% to +15%</span>
+            </div>
+          </div>
+
+          <!-- Category 3: Deep Value Turnaround -->
+          <div class="p-4 rounded-xl bg-slate-900/80 border border-purple-500/30 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-900/60 text-purple-300">Tier 3 &bull; Deep Value</span>
+                <span class="text-xs font-bold text-purple-400">📈 Max Upside</span>
+              </div>
+              <h3 class="text-sm font-extrabold text-white flex items-center gap-1.5">
+                <span>Whirlpool</span> &amp; <span>Lemon Tree</span>
+              </h3>
+              <p class="text-xs text-slate-300 mt-2 leading-relaxed">
+                <strong>Why Buy:</strong> <em>Whirlpool of India (~₹814)</em> is trading at a massive <strong>43.4% discount from its 52W high</strong> with a 2.94% tight DMA convergence coil. <em>Lemon Tree Hotels (~₹109)</em> has formed a multi-month solid base with 35.9% discount from its peak.
+              </p>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-slate-800 text-[11px] text-purple-400 font-semibold flex items-center justify-between">
+              <span>Risk: Moderate</span>
+              <span>Target: +25% to +40%</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Breakout Buys 16-Stock Interactive Table -->
+      <div class="glass-panel overflow-hidden">
+        <div class="p-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <span>🚀</span>
+              <span>The 16 Screened Breakout Stocks ("Best Time for Buy")</span>
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">Filter Rule: 52W High Date &lt; 52W Low Date AND 5, 20, 50, 100, 200 DMAs within &plusmn;5% of CMP</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-400">Sort by:</span>
+            <select id="breakout-sort-select" class="bg-slate-950 border border-slate-700 text-xs text-cyan-300 rounded px-2.5 py-1 focus:outline-none">
+              <option value="tightness">Tightest DMA Spread (Coil)</option>
+              <option value="discount">Biggest 52W Discount</option>
+              <option value="rsi">Lowest RSI (Oversold)</option>
+              <option value="price">Price (Low to High)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto max-h-[650px]">
+          <table class="w-full text-left stock-table text-sm">
+            <thead>
+              <tr class="text-xs uppercase text-slate-400 border-b border-slate-800 bg-slate-900/60">
+                <th class="py-3 px-3 w-10">#</th>
+                <th class="py-3 px-4">Stock Name</th>
+                <th class="py-3 px-4 text-right">Live CMP</th>
+                <th class="py-3 px-4 text-right">Day Change</th>
+                <th class="py-3 px-4 text-center">14-Day RSI</th>
+                <th class="py-3 px-4 text-right">DMA Spread (Coil)</th>
+                <th class="py-3 px-4 text-right">52W High Disc.</th>
+                <th class="py-3 px-4 text-right">52W Low Buffer</th>
+                <th class="py-3 px-4 text-center">AI Rating</th>
+                <th class="py-3 px-4 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="breakout-buys-table-body">
+              <!-- Rendered dynamically via js/app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: MARKET MOVERS DEEP-DIVE -->
+    <div id="tab-content-market_movers" class="tab-content hidden space-y-6">
+      <!-- Movers Deep Dive Header & Controls -->
+      <section class="glass-panel p-5 rounded-2xl border border-purple-500/40 bg-gradient-to-br from-purple-950/40 via-slate-900/90 to-slate-950/90 shadow-2xl">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-purple-900/50">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">⚡</span>
+            <div>
+              <h2 class="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
+                Market Movers &amp; Benchmark Constituents Deep-Dive
+              </h2>
+              <p class="text-xs text-slate-300">Real-time Top Gainers, Losers, and Intraday Momentum across NIFTY 50, BANK NIFTY, SENSEX, and NIFTY IT</p>
+            </div>
+          </div>
+          <!-- Filter Buttons for Deep Dive Tab -->
+          <div class="flex items-center gap-1.5 bg-slate-950/90 p-1 rounded-xl border border-slate-800 text-xs font-semibold overflow-x-auto">
+            <button onclick="setMoversFilter('all')" class="mover-filter-btn px-3 py-1.5 rounded-lg bg-purple-600 text-white font-bold shadow transition-all">🌐 All (108)</button>
+            <button onclick="setMoversFilter('nifty50')" class="mover-filter-btn px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition-all">⚡ NIFTY 50 (50)</button>
+            <button onclick="setMoversFilter('banknifty')" class="mover-filter-btn px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition-all">🏦 BANK NIFTY (12)</button>
+            <button onclick="setMoversFilter('sensex')" class="mover-filter-btn px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition-all">🏛️ SENSEX (30)</button>
+            <button onclick="setMoversFilter('niftyit')" class="mover-filter-btn px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition-all">💻 NIFTY IT (10)</button>
+          </div>
+        </div>
+
+        <!-- Real-Time Advance/Decline & Momentum KPI Strip -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+            <span class="text-[11px] text-slate-400 font-medium">Filtered Constituents</span>
+            <div id="movers-kpi-total" class="text-xl font-bold text-white mt-0.5">108 Stocks</div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/80 border border-emerald-500/30">
+            <span class="text-[11px] text-emerald-400 font-medium">Advancing (Gainers)</span>
+            <div id="movers-kpi-advancing" class="text-xl font-bold text-emerald-400 mt-0.5">--</div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/80 border border-rose-500/30">
+            <span class="text-[11px] text-rose-400 font-medium">Declining (Losers)</span>
+            <div id="movers-kpi-declining" class="text-xl font-bold text-rose-400 mt-0.5">--</div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/80 border border-cyan-500/30">
+            <span class="text-[11px] text-cyan-400 font-medium">Top Performer Today</span>
+            <div id="movers-kpi-best" class="text-xl font-bold text-cyan-400 mt-0.5 truncate">--</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Full Table of Constituents for Selected Index -->
+      <div class="glass-panel overflow-hidden border border-slate-800 rounded-xl">
+        <div class="p-4 bg-slate-900/80 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-white text-sm">Constituent Stocks Ranking &amp; Signals</span>
+            <span id="movers-table-tag" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-950 text-purple-300 border border-purple-700/60">All Indices</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="text" id="movers-search" oninput="renderMoversTable()" placeholder="Filter by symbol, e.g. HDFC, TCS..." class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500">
+            <select id="movers-sort" onchange="renderMoversTable()" class="bg-slate-950 border border-slate-700 text-purple-300 font-bold text-xs rounded-lg px-2.5 py-1.5 focus:outline-none">
+              <option value="gain_desc">Sort: % Gain (High to Low)</option>
+              <option value="gain_asc">Sort: % Loss (High to Low)</option>
+              <option value="surge_desc">Sort: Intraday Surge from Low</option>
+              <option value="cmp_desc">Sort: CMP (High to Low)</option>
+              <option value="rsi_asc">Sort: RSI (Oversold First)</option>
+            </select>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-950 text-slate-400 border-b border-slate-800 sticky top-0">
+              <tr>
+                <th class="py-3 px-3 w-12 text-center">#</th>
+                <th class="py-3 px-3">Symbol</th>
+                <th class="py-3 px-3">Index Tag</th>
+                <th class="py-3 px-3 text-right">CMP (₹)</th>
+                <th class="py-3 px-3 text-right">Day Change</th>
+                <th class="py-3 px-3 text-right">% Change</th>
+                <th class="py-3 px-3 text-center">Day Range (L - H)</th>
+                <th class="py-3 px-3 text-right">Surge from Low</th>
+                <th class="py-3 px-3 text-right">Wilder RSI</th>
+                <th class="py-3 px-3 text-center">Signal Rating</th>
+                <th class="py-3 px-3 text-center">Chart &amp; Action</th>
+              </tr>
+            </thead>
+            <tbody id="movers-table-body" class="divide-y divide-slate-800/60">
+              <!-- Rendered dynamically via js/app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: TOP 500 CONSOLIDATED BREAKOUT STOCKS -->
+    <div id="tab-content-top500" class="tab-content hidden space-y-4">
+      <!-- Search & Filters Toolbar -->
+      <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
+        <div class="relative flex-1 min-w-[260px]">
+          <input type="text" id="top500-search" placeholder="Search across 500 NSE stocks, e.g. TATA, LT, RELIANCE..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+        </div>
+        <div class="flex flex-wrap items-center gap-1.5 text-xs">
+          <button data-top500-filter="all" class="top500-filter-btn px-3 py-1 rounded bg-cyan-500 text-slate-950 font-bold transition-all">All (501)</button>
+          <button data-top500-filter="buy" class="top500-filter-btn px-3 py-1 rounded bg-slate-800 text-emerald-400 hover:bg-slate-700 font-semibold transition-all">Best Time for Buy (16)</button>
+          <button data-top500-filter="avoid" class="top500-filter-btn px-3 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Avoid (485)</button>
+        </div>
+        <div id="top500-count-label" class="text-xs text-slate-400 font-mono">501 Stocks</div>
+      </div>
+
+      <!-- Top 500 Full Table -->
+      <div class="glass-panel overflow-hidden">
+        <div class="overflow-x-auto max-h-[700px]">
+          <table class="w-full text-left stock-table text-xs">
+            <thead>
+              <tr class="text-[11px] uppercase text-slate-400 border-b border-slate-800 bg-slate-900/80 sticky top-0 z-10 backdrop-blur-md">
+                <th class="py-3 px-3 w-10">#</th>
+                <th class="py-3 px-3">NSE Code</th>
+                <th class="py-3 px-3 text-right">CMP (₹)</th>
+                <th class="py-3 px-3 text-right">5 DMA</th>
+                <th class="py-3 px-3 text-right">20 DMA</th>
+                <th class="py-3 px-3 text-right">50 DMA</th>
+                <th class="py-3 px-3 text-right">100 DMA</th>
+                <th class="py-3 px-3 text-right">200 DMA</th>
+                <th class="py-3 px-3 text-right">52W High</th>
+                <th class="py-3 px-3 text-center">High Date</th>
+                <th class="py-3 px-3 text-right">52W Low</th>
+                <th class="py-3 px-3 text-center">Low Date</th>
+                <th class="py-3 px-3 text-center">Output</th>
+              </tr>
+            </thead>
+            <tbody id="top500-table-body">
+              <!-- Rendered dynamically via js/app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: ETF SHOP / ETF STOCKS (TODAY'S BUY) -->
+    <div id="tab-content-etf_shop" class="tab-content hidden space-y-6">
+      <!-- Expert Advisory Banner -->
+      <section class="glass-panel p-5 rounded-2xl border border-purple-500/40 bg-gradient-to-br from-purple-950/40 via-slate-900/90 to-slate-950/90 shadow-2xl">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-purple-900/50">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🛒</span>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
+                  ETF Stocks &mdash; Today's Recommended Buy ETFs
+                </h2>
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                  Daily Earning Strategy
+                </span>
+              </div>
+              <p class="text-xs text-slate-300 mt-0.5">Manoj Mane ETF Shop Strategy &bull; Buy the lowest RSI oversold dip &bull; Target 3% to 5% profit per swing</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 text-xs bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-700">
+              <span class="text-slate-400 font-medium">Evaluation Method:</span>
+              <select id="etf-strategy-select" onchange="changeEtfStrategy(this.value)" class="bg-transparent text-purple-300 font-bold focus:outline-none cursor-pointer">
+                <option value="rsi" selected>Updated 2026 Method (14-Day RSI)</option>
+                <option value="dma20">Classic Method (20-DMA % Discount)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top 5 Today Buy Spotlight Cards -->
+        <div id="etf-spotlight-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 pt-1">
+          <!-- Populated dynamically via js/app.js -->
+        </div>
+      </section>
+
+      <!-- Search & Category Filters -->
+      <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+        <div class="relative flex-1 min-w-[240px]">
+          <input type="text" id="etf-search" placeholder="Search ETF code or name, e.g. HANG SENG, NASDAQ, SILVER, GOLD, IT, BANK..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500">
+        </div>
+        <div class="flex flex-wrap items-center gap-1.5 text-xs">
+          <button data-etf-filter="all" class="etf-filter-btn px-2.5 py-1 rounded bg-purple-600 text-white font-bold transition-all shadow">All (75)</button>
+          <button data-etf-filter="today_buy" class="etf-filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">🔥 Today's Buy (#1 to #5)</button>
+          <button data-etf-filter="oversold" class="etf-filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Oversold (RSI &le; 35)</button>
+          <button data-etf-filter="below_20dma" class="etf-filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Below 20 DMA</button>
+          <button data-etf-filter="global" class="etf-filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Global &amp; US</button>
+          <button data-etf-filter="commodities" class="etf-filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Gold &amp; Silver</button>
+          <button data-etf-filter="sectoral" class="etf-filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Sectoral / Thematic</button>
+          <button data-etf-filter="index" class="etf-filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Broad Indices</button>
+        </div>
+        <div id="etf-count-label" class="text-xs text-slate-400 font-mono">75 ETFs</div>
+      </div>
+
+      <!-- ETF Interactive Table -->
+      <div class="glass-panel overflow-hidden border border-slate-800">
+        <div class="overflow-x-auto max-h-[700px]">
+          <table class="w-full text-left stock-table text-sm">
+            <thead>
+              <tr class="text-xs uppercase text-slate-400 border-b border-slate-800 bg-slate-900/80">
+                <th class="py-3 px-3 w-12 text-center">Rank</th>
+                <th class="py-3 px-4">ETF Symbol</th>
+                <th class="py-3 px-4">Underlying Asset / Fund Name</th>
+                <th class="py-3 px-3 text-center">Category</th>
+                <th class="py-3 px-4 text-right">Live CMP</th>
+                <th class="py-3 px-4 text-right">Day Change</th>
+                <th class="py-3 px-4 text-center w-52">14-Day RSI Gauge</th>
+                <th class="py-3 px-3 text-right">20 DMA</th>
+                <th class="py-3 px-3 text-right">vs 20 DMA</th>
+                <th class="py-3 px-4 text-center">Signal / Action</th>
+                <th class="py-3 px-3 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="etf-table-body">
+              <!-- Rendered dynamically via js/app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 1: NIFTY 50 SCREENER -->
+    <div id="tab-content-nifty50" class="tab-content hidden space-y-4">
+      <!-- Search & Filters Toolbar -->
+      <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+        <div class="relative flex-1 min-w-[240px]">
+          <input type="text" id="global-search" placeholder="Search stock symbol, e.g. HDFC, RELIANCE, TCS..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+        </div>
+        <div class="flex flex-wrap items-center gap-1.5 text-xs">
+          <button data-filter="all" class="filter-btn px-2.5 py-1 rounded bg-cyan-500 text-slate-950 font-bold transition-all">All</button>
+          <button data-filter="buy" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Buy (RSI &le; 35)</button>
+          <button data-filter="oversold" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Extreme Oversold (&le; 30)</button>
+          <button data-filter="wait" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">WAIT (&gt; 35)</button>
+          <button data-filter="overbought" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Overbought (&ge; 70)</button>
+        </div>
+        <div id="nifty50-count-label" class="text-xs text-slate-400 font-mono">50 Stocks</div>
+      </div>
+
+      <!-- Table -->
+      <div class="glass-panel overflow-hidden">
+        <div class="overflow-x-auto max-h-[650px]">
+          <table class="w-full text-left stock-table text-sm">
+            <thead>
+              <tr class="text-xs uppercase text-slate-400 border-b border-slate-800">
+                <th class="py-3 px-4 w-12">#</th>
+                <th class="py-3 px-4">Stock Symbol</th>
+                <th class="py-3 px-4 text-right">Latest Close</th>
+                <th class="py-3 px-4 w-64">14-Day RSI Gauge</th>
+                <th class="py-3 px-4 text-center">Output Signal</th>
+                <th class="py-3 px-4 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="nifty50-table-body">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: NIFTY 50 CALCULATION ENGINE -->
+    <div id="tab-content-nifty50_calc" class="tab-content hidden space-y-4">
+      <div class="glass-panel p-4 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-base font-bold text-white">Nifty 50 Step-by-Step RSI Calculation Engine</h2>
+          <p class="text-xs text-slate-400">Detailed 14-day Wilder smoothing formula, Average Gain/Loss, and RS progression</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-slate-400 font-medium">Select Stock:</label>
+          <select id="calc-stock-select-50" class="bg-slate-950 border border-slate-700 text-cyan-400 font-bold text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-500">
+            <!-- Dynamically populated -->
+          </select>
+        </div>
+      </div>
+
+      <!-- Chart Container -->
+      <div class="glass-panel p-4 rounded-xl">
+        <div class="h-72 w-full">
+          <canvas id="calc-chart-50"></canvas>
+        </div>
+      </div>
+
+      <!-- Calculation History Table -->
+      <div class="glass-panel overflow-hidden">
+        <div class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center text-xs">
+          <span class="font-bold text-slate-300">Historical Calculation Series (Recent 50 Trading Sessions)</span>
+          <span class="text-slate-400 font-mono">Formula: RSI = 100 - [100 / (1 + RS)]</span>
+        </div>
+        <div class="overflow-x-auto max-h-[500px]">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-950 text-slate-400 sticky top-0 border-b border-slate-800">
+              <tr>
+                <th class="py-2.5 px-3">Date</th>
+                <th class="py-2.5 px-3 text-right">Close (₹)</th>
+                <th class="py-2.5 px-3 text-right">Change</th>
+                <th class="py-2.5 px-3 text-right">Gain</th>
+                <th class="py-2.5 px-3 text-right">Loss</th>
+                <th class="py-2.5 px-3 text-right">Avg Gain (14)</th>
+                <th class="py-2.5 px-3 text-right">Avg Loss (14)</th>
+                <th class="py-2.5 px-3 text-right">RS</th>
+                <th class="py-2.5 px-3 text-right">RSI</th>
+              </tr>
+            </thead>
+            <tbody id="calc-table-body-50">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: NIFTY NEXT 50 SCREENER + VALUATION -->
+    <div id="tab-content-next50" class="tab-content hidden space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+        <div class="text-xs text-slate-400">
+          Tracks 50 high-growth Indian blue chips with P/E valuation, 52-week high discount, and RSI signals.
+        </div>
+        <div id="next50-count-label" class="text-xs text-slate-400 font-mono">50 Stocks</div>
+      </div>
+
+      <div class="glass-panel overflow-hidden">
+        <div class="overflow-x-auto max-h-[650px]">
+          <table class="w-full text-left stock-table text-sm">
+            <thead>
+              <tr class="text-xs uppercase text-slate-400 border-b border-slate-800">
+                <th class="py-3 px-4 w-12">#</th>
+                <th class="py-3 px-4">Stock Symbol</th>
+                <th class="py-3 px-4 text-right">Price (₹)</th>
+                <th class="py-3 px-4 w-52">14-Day RSI</th>
+                <th class="py-3 px-4 text-center">Output</th>
+                <th class="py-3 px-4 text-right">P/E</th>
+                <th class="py-3 px-4 w-52">52W Range &amp; Discount</th>
+                <th class="py-3 px-4 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="next50-table-body">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: NIFTY NEXT 50 CALCULATION ENGINE -->
+    <div id="tab-content-next50_calc" class="tab-content hidden space-y-4">
+      <div class="glass-panel p-4 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-base font-bold text-white">Nifty Next 50 Step-by-Step RSI Calculation Engine</h2>
+          <p class="text-xs text-slate-400">Historical daily gains, losses, smoothing and RS values</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-slate-400 font-medium">Select Stock:</label>
+          <select id="calc-stock-select-next50" class="bg-slate-950 border border-slate-700 text-cyan-400 font-bold text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-500">
+            <!-- Dynamically populated -->
+          </select>
+        </div>
+      </div>
+
+      <!-- Chart Container -->
+      <div class="glass-panel p-4 rounded-xl">
+        <div class="h-72 w-full">
+          <canvas id="calc-chart-next50"></canvas>
+        </div>
+      </div>
+
+      <!-- Calculation History Table -->
+      <div class="glass-panel overflow-hidden">
+        <div class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center text-xs">
+          <span class="font-bold text-slate-300">Historical Calculation Series (Recent 50 Sessions)</span>
+          <span class="text-slate-400 font-mono">Formula: RSI = 100 - [100 / (1 + RS)]</span>
+        </div>
+        <div class="overflow-x-auto max-h-[500px]">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-950 text-slate-400 sticky top-0 border-b border-slate-800">
+              <tr>
+                <th class="py-2.5 px-3">Date</th>
+                <th class="py-2.5 px-3 text-right">Close (₹)</th>
+                <th class="py-2.5 px-3 text-right">Change</th>
+                <th class="py-2.5 px-3 text-right">Gain</th>
+                <th class="py-2.5 px-3 text-right">Loss</th>
+                <th class="py-2.5 px-3 text-right">Avg Gain (14)</th>
+                <th class="py-2.5 px-3 text-right">Avg Loss (14)</th>
+                <th class="py-2.5 px-3 text-right">RS</th>
+                <th class="py-2.5 px-3 text-right">RSI</th>
+              </tr>
+            </thead>
+            <tbody id="calc-table-body-next50">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: MARKET DATES HISTORY -->
+    <div id="tab-content-market_dates" class="tab-content hidden space-y-4">
+      <div class="glass-panel p-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-base font-bold text-white">Historical Market Sessions &amp; Benchmark Data</h2>
+          <p id="market-dates-summary" class="text-xs text-slate-400">Over 2,400 daily market bars spanning 2016 through 2026</p>
+        </div>
+      </div>
+
+      <div class="glass-panel p-4 rounded-xl">
+        <div class="h-80 w-full">
+          <canvas id="market-dates-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 6: COMPOUNDING CALCULATOR -->
+    <div id="tab-content-compounding" class="tab-content hidden space-y-6">
+      <div class="glass-panel p-6 rounded-2xl border border-cyan-800/40 bg-gradient-to-br from-slate-900 via-cyan-950/20 to-slate-900">
+        <div class="max-w-3xl">
+          <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-cyan-900/60 text-cyan-300 border border-cyan-700/50">Compounding Framework</span>
+          <h2 class="text-xl font-bold text-white mt-2">Manoj Mane's 338-Trade Compounding Journey (₹5,000 &rarr; ₹2 Crore)</h2>
+          <p class="text-xs text-slate-300 mt-1 leading-relaxed">
+            By accumulating high-quality Nifty 50 / Next 50 stocks when their 14-day RSI drops to 35 or lower, and booking a modest 3% to 4% profit on recovery, reinvesting all capital across 338 sequential cycles compounds ₹5,000 into over ₹2 Crore.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <label class="text-xs text-slate-400 font-medium">Starting Capital (₹):</label>
+            <input type="number" id="calc-capital-input" value="5000" min="1000" step="1000" class="w-full bg-slate-900 border border-slate-700 text-white font-bold text-base rounded-lg px-3 py-1.5 mt-1 focus:outline-none focus:border-cyan-500">
+          </div>
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <label class="text-xs text-slate-400 font-medium">Profit Target per Trade (%):</label>
+            <input type="number" id="calc-profit-input" value="3.5" min="1" max="20" step="0.5" class="w-full bg-slate-900 border border-slate-700 text-white font-bold text-base rounded-lg px-3 py-1.5 mt-1 focus:outline-none focus:border-cyan-500">
+          </div>
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <label class="text-xs text-slate-400 font-medium">Number of Compounded Trades:</label>
+            <input type="number" id="calc-trades-input" value="100" min="5" max="338" step="5" class="w-full bg-slate-900 border border-slate-700 text-white font-bold text-base rounded-lg px-3 py-1.5 mt-1 focus:outline-none focus:border-cyan-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+          <div class="p-4 rounded-xl bg-slate-950/80 border border-emerald-900/60 flex items-center justify-between">
+            <div>
+              <div class="text-xs text-slate-400">Projected Balance:</div>
+              <div id="calc-final-balance" class="text-2xl font-bold text-emerald-400 mt-0.5">₹0</div>
+            </div>
+            <div class="text-3xl">🚀</div>
+          </div>
+          <div class="p-4 rounded-xl bg-slate-950/80 border border-cyan-900/60 flex items-center justify-between">
+            <div>
+              <div class="text-xs text-slate-400">Trades Needed to Reach ₹2 Crore:</div>
+              <div id="calc-trades-to-2cr" class="text-2xl font-bold text-cyan-400 mt-0.5">338 Trades</div>
+            </div>
+            <div class="text-3xl">🎯</div>
+          </div>
+        </div>
+
+        <div class="mt-6">
+          <h3 class="text-xs uppercase font-bold text-slate-400 mb-2 tracking-wider">Milestone Progressions</h3>
+          <div class="overflow-x-auto max-h-[350px] border border-slate-800 rounded-xl">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-950 text-slate-400 sticky top-0 border-b border-slate-800">
+                <tr>
+                  <th class="py-2.5 px-3">Milestone</th>
+                  <th class="py-2.5 px-3 text-right">Profit Earned (₹)</th>
+                  <th class="py-2.5 px-3 text-right">New Compounded Capital (₹)</th>
+                </tr>
+              </thead>
+              <tbody id="compounding-table-body">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 7: STRATEGY & RULES -->
+    <div id="tab-content-strategy" class="tab-content hidden space-y-6">
+      <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-6">
+        <div>
+          <h2 class="text-lg font-bold text-white">"Vihaan Stock Market Dashboard" Trading Playbook &amp; Rules</h2>
+          <p class="text-xs text-slate-400 mt-0.5">Comprehensive systematic RSI &amp; Breakout guide curated by Manoj Mane</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+            <div class="text-sm font-bold text-cyan-400 flex items-center gap-2">
+              <span>🎯</span>
+              <span>Rule 1: Stock Universe Selection</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Trade <strong>strictly</strong> in Nifty 50 and Nifty Next 50 index constituents. These top 100 Indian companies have the highest liquidity and zero insolvency risk.
+            </p>
+          </div>
+
+          <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+            <div class="text-sm font-bold text-emerald-400 flex items-center gap-2">
+              <span>📉</span>
+              <span>Rule 2: Entry on RSI &le; 35</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Initiate the first buying tranche only when the 14-day Wilder RSI reaches <strong>35 or lower</strong>. Never chase stocks when RSI is above 35.
+            </p>
+          </div>
+
+          <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+            <div class="text-sm font-bold text-amber-400 flex items-center gap-2">
+              <span>🛒</span>
+              <span>Rule 3: Tranche Averaging</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Allocate your capital across multiple tranches (e.g. 5 tranches). If the stock dips another 3% to 5% with RSI staying low, deploy the next tranche.
+            </p>
+          </div>
+
+          <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+            <div class="text-sm font-bold text-purple-400 flex items-center gap-2">
+              <span>💰</span>
+              <span>Rule 4: Profit Booking</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Book profit systematically when your position generates a <strong>3% to 6%</strong> gain or when the 14-day RSI bounces back to neutral (50&ndash;60).
+            </p>
+          </div>
+        </div>
+
+        <!-- Video References & Educational Resources -->
+        <div class="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300">Strategy Video Guides &amp; Real Backtest</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <a href="https://www.youtube.com/results?search_query=manoj+mane+rsi+trading+strategy" target="_blank" class="p-3 rounded-lg bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-400 flex items-center gap-2 transition-all">
+              <span>📺</span>
+              <span class="font-medium">1. सिर्फ RSI से Swing Trading करने का कंपलीट सिस्टम</span>
+            </a>
+            <a href="https://www.youtube.com/results?search_query=vihaan+stock+market+dashboard+manoj+mane" target="_blank" class="p-3 rounded-lg bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-400 flex items-center gap-2 transition-all">
+              <span>📺</span>
+              <span class="font-medium">2. 5000 से प्रारंभ करके 338 ट्रेड में 2 करोड़ बनानें वाली Vihaan Nifty Stocks</span>
+            </a>
+          </div>
+          <div class="pt-2 text-xs text-slate-400">
+            <span>Official Backtest Reference: </span>
+            <span class="text-cyan-400 font-semibold">
+              Real 3 Months Back Test of Manoj Mane Nifty Stocks
+            </span>
+          </div>
+        </div>
+
+        <!-- Disclaimers from original sheet -->
+        <div class="p-4 rounded-xl bg-slate-950 text-xs text-slate-400 space-y-2 border border-slate-800">
+          <div class="font-bold text-slate-300">SEBI Research Analyst Disclosure &amp; Disclaimer:</div>
+          <p class="leading-relaxed">
+            Stocks displayed on this automated analytics portal are selected purely by mathematical RSI formulas and are strictly for educational and analytical purposes. No part of this portal should be construed as financial advisory or recommendation to buy or sell securities. Always consult a qualified SEBI-registered investment advisor before making financial decisions.
+          </p>
+          <p class="leading-relaxed text-[11px] text-slate-500">
+            Data Accuracy: Data is synchronized with market feeds and delayed historical quotes. Always re-verify prices on the National Stock Exchange of India (NSE) before taking trading actions.
+          </p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Stock Analysis Modal Drawer (Screenshot 3 Google Finance Candlestick Layout) -->
+  <div id="stock-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-5xl w-full max-h-[96vh] overflow-y-auto p-4 sm:p-5 space-y-3 shadow-2xl relative">
+      <!-- Close Button -->
+      <button onclick="closeStockModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-2xl font-bold w-9 h-9 rounded-lg flex items-center justify-center bg-slate-800/90 hover:bg-slate-700 transition-colors z-20">
+        &times;
+      </button>
+
+      <!-- 1. Header: Title, Ticker, 12-Hour Timestamp, Live Quote & Status Badge -->
+      <div class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-800/80 pb-3 pr-10">
+        <div>
+          <div class="flex items-center gap-2">
+            <h3 id="modal-stock-title" class="text-xl sm:text-2xl font-black text-white tracking-tight">PETRONET</h3>
+            <span id="modal-stock-code" class="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded font-mono">NSE:PETRONET</span>
+            <button id="modal-watchlist-btn" onclick="toggleCurrentModalWatchlist()" title="Add / Remove from Watchlist" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 flex items-center gap-1 transition-all">
+              <span>⭐</span> <span id="modal-watchlist-text">Watchlist</span>
+            </button>
+          </div>
+          <div id="modal-stock-updated" class="text-xs text-slate-400 mt-1">30 Oct, 3:30:00 PM IST &bull; INR</div>
+          <div class="flex items-baseline gap-3 mt-2">
+            <span id="modal-stock-price" class="text-3xl sm:text-4xl font-black text-white tracking-tight">₹--</span>
+            <span id="modal-stock-change" class="text-sm font-bold text-emerald-400">--</span>
+          </div>
+        </div>
+
+        <div class="flex flex-col items-end gap-2">
+          <!-- Prominent Status Badge -->
+          <div id="modal-stock-status">
+            <!-- Dynamically populated e.g. Immediate Buy (Breakout) -->
+          </div>
+          <div class="flex items-center gap-3 text-xs text-slate-400 pt-1">
+            <span>RSI: <strong id="modal-stock-rsi" class="text-cyan-400 font-mono">--</strong></span>
+            <span>&bull;</span>
+            <span>52W High Disc: <strong id="modal-stock-disc" class="text-cyan-300 font-mono">--</strong></span>
+            <span>&bull;</span>
+            <span>52W Low Buffer: <strong id="modal-stock-buf" class="text-emerald-400 font-mono">--</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Google Finance Toolbar: Candle vs Line, SuperTrend, SMA-5, Indicators -->
+      <div class="flex flex-wrap items-center justify-between gap-2.5 pt-1">
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Chart Mode Switcher -->
+          <div class="bg-slate-950 p-1 rounded-lg border border-slate-800 flex items-center gap-1 text-xs">
+            <button id="btn-stock-candle" onclick="setStockChartMode('candle')" class="px-3 py-1 rounded bg-cyan-600 text-white font-bold flex items-center gap-1.5 transition-all">
+              <span>🕯️</span> <span>Candle</span>
+            </button>
+            <button id="btn-stock-line" onclick="setStockChartMode('line')" class="px-3 py-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition-all">
+              <span>📈</span> <span>Price &amp; RSI Lines</span>
+            </button>
+          </div>
+
+          <!-- Indicator Badges (Google Finance Screenshot 3 + SuperTrend) -->
+          <div class="flex flex-wrap items-center gap-1.5 text-xs">
+            <span id="modal-supertrend-badge" class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-500/60 flex items-center gap-1.5 shadow-sm">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span> SuperTrend (10, 3)
+            </span>
+            <span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-950/70 text-amber-300 border border-amber-800/60 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span> Moving average (SMA-5)
+            </span>
+            <span class="hidden md:flex px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-800/80 text-slate-300 border border-slate-700/60 items-center gap-1.5">
+              <span class="w-3 h-0.5 bg-slate-400"></span> Prev. close line
+            </span>
+          </div>
+        </div>
+
+        <!-- Quick Info -->
+        <span class="text-[11px] text-slate-400 font-medium">Google Finance Intraday 5M Candlesticks</span>
+      </div>
+
+      <!-- 3. Main Candlestick Chart Canvas (Auto-scaled proper candles & SuperTrend) -->
+      <div class="h-72 sm:h-80 md:h-[340px] w-full relative bg-slate-950/60 rounded-xl p-2 border border-slate-800/80">
+        <canvas id="modal-chart-canvas"></canvas>
+      </div>
+
+      <!-- 4. Sub-Chart: Volume / Momentum Histogram (Screenshot 3) -->
+      <div class="h-20 w-full relative bg-slate-950/30 rounded-lg p-1.5 border border-slate-800/50">
+        <canvas id="modal-subchart-canvas"></canvas>
+      </div>
+
+      <!-- 5. Bottom Timeframe Bar & Close Button (Screenshot 3) -->
+      <div class="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-800/80 text-xs">
+        <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+          <button class="stock-tf-btn active px-2.5 py-1 rounded bg-cyan-600 text-white font-bold" onclick="setStockTimeframe('1D')">1D</button>
+          <button class="stock-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setStockTimeframe('5D')">5D</button>
+          <button class="stock-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setStockTimeframe('1M')">1M</button>
+          <button class="stock-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setStockTimeframe('6M')">6M</button>
+          <button class="stock-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setStockTimeframe('YTD')">YTD</button>
+          <button class="stock-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setStockTimeframe('1Y')">1Y</button>
+          <button class="stock-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setStockTimeframe('MAX')">MAX</button>
+        </div>
+
+        <button onclick="closeStockModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors">
+          Close Inspector
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Index Graph Modal (Screenshot 2 Live NIFTY 50 / Major Indices Interactive Graph) -->
+  <div id="index-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-5xl w-full p-5 sm:p-6 space-y-4 shadow-2xl relative overflow-hidden">
+      <!-- Close Button -->
+      <button onclick="closeIndexModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-2xl font-bold w-9 h-9 rounded-lg flex items-center justify-center bg-slate-800/90 hover:bg-slate-700 transition-colors z-20">
+        &times;
+      </button>
+
+      <!-- 1. Top Scrolling Market Ticker Ribbon (Screenshot 2) -->
+      <div class="ticker-ribbon-container border border-slate-800/90 rounded-lg bg-slate-950/90 py-1.5 px-2">
+        <div id="index-ticker-track" class="ticker-ribbon-track">
+          <!-- Populated dynamically with live stock ticks -->
+        </div>
+      </div>
+
+      <!-- 2. Index Switcher Pills (NIFTY 50, NIFTY NEXT 50, BANK NIFTY, SENSEX, NIFTY IT) -->
+      <div id="index-pills-container" class="flex flex-wrap items-center gap-2 pt-1 border-b border-slate-800/80 pb-3">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- 3. Index Title, Price, Change Badge & Metric Cards (Screenshot 2) -->
+      <div class="flex flex-wrap items-start justify-between gap-4 pt-1">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 id="modal-index-name" class="text-2xl sm:text-3xl font-black text-white tracking-tight">NIFTY 50</h2>
+            <span class="text-slate-500 text-xl font-bold">&gt;</span>
+          </div>
+          <div id="modal-index-updated" class="text-xs text-slate-400 mt-0.5">Updated: --</div>
+          <div class="flex items-baseline gap-3 mt-2">
+            <span id="modal-index-price" class="text-3xl sm:text-4xl font-black text-white tracking-tight">--</span>
+            <span id="modal-index-change-badge" class="px-2.5 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">--</span>
+          </div>
+        </div>
+
+        <!-- 3 Metrics: OPEN, HIGH, LOW -->
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-2 text-center min-w-[90px]">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">OPEN</div>
+            <div id="modal-index-open" class="text-sm sm:text-base font-black text-slate-200 mt-0.5">--</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-2 text-center min-w-[90px]">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">HIGH</div>
+            <div id="modal-index-high" class="text-sm sm:text-base font-black text-emerald-400 mt-0.5">--</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-2 text-center min-w-[90px]">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-rose-400">LOW</div>
+            <div id="modal-index-low" class="text-sm sm:text-base font-black text-rose-400 mt-0.5">--</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Controls: Timeframe Pills & Area/Candle Toggle -->
+      <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+        <!-- Timeframes: PO, CAS, 1D, 1M, 3M, 6M, 1Y (Screenshot 2) -->
+        <div class="flex items-center gap-1 sm:gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
+          <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('PO')">PO</button>
+          <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('CAS')">CAS</button>
+          <button class="index-tf-btn active px-2.5 py-1 rounded bg-cyan-600 text-white font-bold" onclick="setIndexTimeframe('1D')">1D</button>
+          <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('1M')">1M</button>
+          <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('3M')">3M</button>
+          <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('6M')">6M</button>
+          <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('1Y')">1Y</button>
+        </div>
+
+        <!-- Chart Mode Toggle: Area vs Candlestick -->
+        <div class="bg-slate-950 p-1 rounded-lg border border-slate-800 flex items-center gap-1 text-xs">
+          <button id="btn-index-area" onclick="setIndexChartMode('area')" class="px-3 py-1 rounded bg-cyan-600 text-white font-bold flex items-center gap-1.5 transition-all">
+            <span>📈</span> <span>Area Chart</span>
+          </button>
+          <button id="btn-index-candle" onclick="setIndexChartMode('candle')" class="px-3 py-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition-all">
+            <span>🕯️</span> <span>Candlestick</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 5. Interactive Chart Canvas -->
+      <div class="h-80 w-full relative bg-slate-950/40 rounded-xl p-2 border border-slate-800/60">
+        <canvas id="index-chart-canvas"></canvas>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
+        <span class="text-[11px] text-slate-500">Live 5-Minute Intraday Ticks synced with National Stock Exchange of India (NSE).</span>
+        <button onclick="closeIndexModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/data.js?v=20261030_2130"></script>
+  <script src="js/app.js?v=20261030_2130"></script>
+</body>
+</html>
