@@ -686,11 +686,182 @@ function removeFromWatchlist(sym) {
   syncModalWatchlistButton(clean);
 }
 
-function promptAddToWatchlist() {
-  const sym = prompt("Enter Stock Symbol to add to Watchlist (e.g. RELIANCE, TATASTEEL, INFY):");
-  if (sym && sym.trim()) {
-    toggleWatchlist(sym.trim().toUpperCase());
+// Modern Futuristic Add to Watchlist Modal (Replaces browser prompt)
+function openAddWatchlistModal() {
+  const modal = document.getElementById('add-watchlist-modal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+
+  const input = document.getElementById('watchlist-search-input');
+  if (input) {
+    input.value = '';
+    setTimeout(() => input.focus(), 100);
   }
+
+  // Populate Angel One Quick Preset Pills
+  renderWatchlistPresets();
+
+  // Populate initial stock list
+  filterWatchlistSearch('');
+}
+
+function closeAddWatchlistModal() {
+  const modal = document.getElementById('add-watchlist-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+// Preset Angel One top traded / highly liquid stocks
+const ANGEL_WATCHLIST_PRESETS = [
+  'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK',
+  'SBIN', 'BHARTIARTL', 'TATAMOTORS', 'ITC', 'LT',
+  'BAJFINANCE', 'ADANIENT', 'PETRONET', 'NIFTYBEES', 'GOLDBEES'
+];
+
+function renderWatchlistPresets() {
+  const container = document.getElementById('watchlist-preset-pills');
+  if (!container) return;
+  const currentList = getWatchlistSymbols();
+
+  container.innerHTML = ANGEL_WATCHLIST_PRESETS.map(sym => {
+    const isAdded = currentList.includes(sym);
+    if (isAdded) {
+      return `
+        <button onclick="toggleWatchlistStock('${sym}')" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/50 flex items-center gap-1 transition-all hover:bg-amber-500/30">
+          <span>★</span> <span>${sym}</span> <span class="text-[10px] text-emerald-400">✓</span>
+        </button>
+      `;
+    }
+    return `
+      <button onclick="toggleWatchlistStock('${sym}')" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-cyan-950 text-slate-300 hover:text-cyan-300 border border-slate-700/80 hover:border-cyan-500/50 flex items-center gap-1 transition-all">
+        <span>+</span> <span>${sym}</span>
+      </button>
+    `;
+  }).join('');
+}
+
+function toggleWatchlistStock(sym) {
+  toggleWatchlist(sym);
+  renderWatchlistPresets();
+  const input = document.getElementById('watchlist-search-input');
+  filterWatchlistSearch(input ? input.value : '');
+}
+
+function filterWatchlistSearch(query) {
+  const resultsContainer = document.getElementById('watchlist-search-results');
+  if (!resultsContainer) return;
+
+  const q = (query || '').trim().toUpperCase();
+  const currentWatchlist = getWatchlistSymbols();
+
+  // Gather all unique stocks from our datasets
+  const allStocksMap = new Map();
+
+  const addListToMap = (list, tag) => {
+    (list || []).forEach(s => {
+      if (s && s.symbol && !allStocksMap.has(s.symbol)) {
+        allStocksMap.set(s.symbol, {
+          symbol: s.symbol,
+          name: s.company_name || s.name || s.symbol,
+          price: s.live_price || s.price || s.cmp || s.sheet_cmp || 0,
+          change_pct: s.change_pct !== undefined ? s.change_pct : (s.change || 0),
+          tag: tag
+        });
+      }
+    });
+  };
+
+  addListToMap(window.NIFTY_50_DATA, 'NIFTY 50');
+  addListToMap(window.NIFTY_NEXT_50_DATA, 'NIFTY NEXT 50');
+  addListToMap(window.BREAKOUT_BUYS_DATA, 'BREAKOUT');
+  addListToMap(window.TOP_500_STOCKS_DATA, 'TOP 500');
+  addListToMap(window.ETF_DATA, 'ETF');
+
+  let matches = [];
+  if (!q) {
+    // Show first 20 popular stocks
+    matches = Array.from(allStocksMap.values()).slice(0, 20);
+  } else {
+    matches = Array.from(allStocksMap.values()).filter(s => {
+      return s.symbol.toUpperCase().includes(q) || (s.name && s.name.toUpperCase().includes(q));
+    }).slice(0, 30);
+  }
+
+  // If query is not in list, provide a quick custom add option
+  let customOptionHtml = '';
+  if (q && !allStocksMap.has(q)) {
+    const isAdded = currentWatchlist.includes(q);
+    customOptionHtml = `
+      <div class="p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/50 flex items-center justify-between gap-3 mb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-lg">⚡</span>
+          <div>
+            <div class="text-xs font-black text-white font-mono">NSE:${q}</div>
+            <div class="text-[10px] text-cyan-300">Custom Angel One / NSE Symbol</div>
+          </div>
+        </div>
+        <button onclick="toggleWatchlistStock('${q}')" class="px-3 py-1.5 rounded-lg ${isAdded ? 'bg-amber-500 text-slate-950' : 'bg-cyan-600 hover:bg-cyan-500 text-white'} text-xs font-bold transition-all shadow">
+          ${isAdded ? '★ In Watchlist' : '➕ Add to Watchlist'}
+        </button>
+      </div>
+    `;
+  }
+
+  if (matches.length === 0 && !customOptionHtml) {
+    resultsContainer.innerHTML = `
+      <div class="py-6 text-center text-slate-500 text-xs">
+        No stocks matching "${q}". You can type any valid NSE symbol to add it directly.
+      </div>
+    `;
+    return;
+  }
+
+  const itemsHtml = matches.map(s => {
+    const isAdded = currentWatchlist.includes(s.symbol);
+    const priceStr = s.price ? `₹${s.price.toLocaleString('en-IN')}` : '';
+    const chgSign = (s.change_pct || 0) >= 0 ? '+' : '';
+    const chgColor = (s.change_pct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400';
+
+    return `
+      <div class="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-cyan-500/40 hover:bg-slate-900/80 transition-all flex items-center justify-between gap-2.5">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center font-black text-xs text-white shrink-0">
+            ${s.symbol.slice(0, 2)}
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs font-black text-white font-mono">${s.symbol}</span>
+              <span class="text-[9px] px-1.5 py-0.2 rounded bg-slate-900 text-slate-400 border border-slate-800 font-semibold">${s.tag}</span>
+            </div>
+            <div class="text-[11px] text-slate-400 truncate max-w-[220px]">${s.name}</div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 shrink-0">
+          ${priceStr ? `
+            <div class="text-right hidden sm:block">
+              <div class="text-xs font-black text-white font-mono">${priceStr}</div>
+              <div class="text-[10px] font-bold ${chgColor} font-mono">${chgSign}${s.change_pct}%</div>
+            </div>
+          ` : ''}
+
+          <button onclick="toggleWatchlistStock('${s.symbol}')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow ${
+            isAdded
+              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/50'
+              : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-900/30'
+          }">
+            ${isAdded ? '★ Added' : '➕ Add'}
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  resultsContainer.innerHTML = customOptionHtml + itemsHtml;
+}
+
+// Redirect old promptAddToWatchlist to the modern modal!
+function promptAddToWatchlist() {
+  openAddWatchlistModal();
 }
 
 function syncModalWatchlistButton(symbol) {
@@ -1075,7 +1246,7 @@ function renderMoverItem(s, rank, type) {
   const changeFormatted = `${chgSign}₹${Math.abs(s.change).toFixed(2)}`;
   const pctFormatted = `${chgSign}${s.change_pct?.toFixed(2)}%`;
 
-  let rankBadgeBg = 'bg-slate-800 text-slate-400 group-hover:bg-purple-600 group-hover:text-white';
+  let rankBadgeBg = 'bg-slate-800 text-slate-400 group-hover:bg-cyan-500 group-hover:text-slate-950 font-bold';
   if (rank === 1) rankBadgeBg = 'bg-amber-400 text-slate-950 font-black shadow-sm';
   else if (rank === 2) rankBadgeBg = 'bg-slate-300 text-slate-950 font-black';
   else if (rank === 3) rankBadgeBg = 'bg-amber-700 text-amber-100 font-bold';
@@ -1094,15 +1265,15 @@ function renderMoverItem(s, rank, type) {
   }
 
   const colorClass = isPos ? 'text-emerald-400' : 'text-rose-400';
-  const hoverBorder = type === 'loser' ? 'hover:border-rose-500/50' : (type === 'intraday' ? 'hover:border-amber-500/50' : 'hover:border-emerald-500/50');
+  const moverTypeClass = type === 'loser' ? 'mover-loser' : (type === 'intraday' ? 'mover-intraday' : 'mover-gainer');
 
   return `
-    <div class="p-2 rounded-lg bg-slate-900/90 border border-slate-800/80 ${hoverBorder} hover:bg-slate-800/80 transition-all flex items-center justify-between gap-2.5 group">
+    <div onclick="openStockModal('${s.symbol}')" class="mover-card-pop ${moverTypeClass} p-2.5 rounded-xl bg-slate-900/90 border border-slate-800/80 flex items-center justify-between gap-2.5 group cursor-pointer select-none">
       <div class="flex items-center gap-2 min-w-0">
         <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] transition-colors shrink-0 ${rankBadgeBg}">${rank}</span>
         <div class="min-w-0">
           <div class="flex items-center gap-1.5">
-            <span onclick="openStockModal('${s.symbol}')" class="font-black text-white text-xs truncate hover:text-cyan-400 cursor-pointer transition-colors">${s.symbol}</span>
+            <span class="font-black text-white text-xs truncate group-hover:text-cyan-300 transition-colors">${s.symbol}</span>
             <span class="text-[9px] px-1.5 py-0.2 rounded border font-semibold shrink-0 ${tagBg}">${s.primary_tag}</span>
           </div>
           ${valueSubtext}
@@ -1110,11 +1281,11 @@ function renderMoverItem(s, rank, type) {
       </div>
       <div class="flex items-center gap-2 shrink-0">
         <div class="text-right">
-          <div class="text-xs font-black text-white font-mono">₹${priceFormatted}</div>
+          <div class="text-xs font-black text-white font-mono group-hover:text-cyan-200 transition-colors">₹${priceFormatted}</div>
           <div class="text-[11px] font-black ${colorClass} font-mono">${pctFormatted}</div>
         </div>
-        <button onclick="openStockModal('${s.symbol}')" title="Inspect ${s.symbol} Candlestick & SuperTrend" class="px-2 py-1 rounded bg-slate-800 hover:bg-cyan-600 hover:text-white text-slate-300 text-[10px] font-bold border border-slate-700 transition-all flex items-center gap-1 shrink-0">
-          <span>🕯️</span>
+        <button onclick="event.stopPropagation(); openStockModal('${s.symbol}')" title="Inspect ${s.symbol} in Angel One Live Chart" class="px-2 py-1 rounded-lg bg-slate-800 group-hover:bg-cyan-500 group-hover:text-slate-950 text-slate-300 text-[10px] font-bold border border-slate-700 transition-all flex items-center gap-1 shrink-0 shadow">
+          <span>⚡</span>
         </button>
       </div>
     </div>
@@ -2717,6 +2888,82 @@ function getStockFuturisticProfile(symbol, universe, source, stockMeta = {}) {
 
 
 // 5. Stock Modal Analyzer (Google Finance Style Candlestick & Volume Terminal)
+
+// Format NSE/BSE symbols for TradingView / Angel One engine
+function formatTradingViewSymbol(symbol) {
+  if (!symbol) return 'NSE:NIFTY';
+  let sym = symbol.trim().toUpperCase();
+  if (sym === 'NIFTY 50' || sym === 'NIFTY') return 'NSE:NIFTY';
+  if (sym === 'BANK NIFTY' || sym === 'BANKNIFTY') return 'NSE:BANKNIFTY';
+  if (sym === 'SENSEX') return 'BSE:SENSEX';
+  if (sym === 'NIFTY IT') return 'NSE:CNXIT';
+  sym = sym.replace(/&/g, '_');
+  if (!sym.includes(':')) {
+    sym = `NSE:${sym}`;
+  }
+  return sym;
+}
+
+// Directly Embed Angel One & TradingView Live Chart with SuperTrend & Candlesticks in Modal
+function loadAngelOneTradingViewWidget(symbol) {
+  const container = document.getElementById('tradingview-live-widget');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const tvSymbol = formatTradingViewSymbol(symbol);
+
+  // If TradingView JS library is available
+  if (typeof TradingView !== 'undefined' && TradingView.widget) {
+    try {
+      new TradingView.widget({
+        "autosize": true,
+        "symbol": tvSymbol,
+        "interval": "5",
+        "timezone": "Asia/Kolkata",
+        "theme": "dark",
+        "style": "1", // 1 = Candlesticks
+        "locale": "in",
+        "toolbar_bg": "#020617",
+        "enable_publishing": false,
+        "allow_symbol_change": true,
+        "container_id": "tradingview-live-widget",
+        "hide_side_toolbar": false,
+        "withdateranges": true,
+        "studies": [
+          "Supertrend@tv-basicstudies",
+          "MASimple@tv-basicstudies",
+          "Volume@tv-basicstudies"
+        ],
+        "overrides": {
+          "paneProperties.background": "#020617",
+          "paneProperties.vertGridProperties.color": "rgba(30, 41, 59, 0.4)",
+          "paneProperties.horzGridProperties.color": "rgba(30, 41, 59, 0.4)",
+          "mainSeriesProperties.candleStyle.upColor": "#10b981",
+          "mainSeriesProperties.candleStyle.downColor": "#f43f5e",
+          "mainSeriesProperties.candleStyle.wickUpColor": "#10b981",
+          "mainSeriesProperties.candleStyle.wickDownColor": "#f43f5e",
+          "mainSeriesProperties.candleStyle.borderUpColor": "#10b981",
+          "mainSeriesProperties.candleStyle.borderDownColor": "#f43f5e"
+        }
+      });
+      return;
+    } catch (e) {
+      console.warn('[TradingView] Widget constructor failed, using embed fallback', e);
+    }
+  }
+
+  // Fallback to high-performance embed iframe
+  const iframe = document.createElement('iframe');
+  iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=${encodeURIComponent(tvSymbol)}&interval=5&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=020617&studies=%5B%22Supertrend%40tv-basicstudies%22%2C%22MASimple%40tv-basicstudies%22%2C%22Volume%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Asia%2FKolkata&locale=in`;
+  iframe.style.width = '100%';
+  iframe.style.height = '100%';
+  iframe.style.border = 'none';
+  iframe.setAttribute('allowtransparency', 'true');
+  iframe.setAttribute('scrolling', 'no');
+  iframe.setAttribute('allowfullscreen', 'true');
+  container.appendChild(iframe);
+}
+
 async function openStockModal(symbol, universe = 'nifty50', source = null) {
   const modal = document.getElementById('stock-modal');
   if (!modal) return;
@@ -2881,13 +3128,15 @@ async function openStockModal(symbol, universe = 'nifty50', source = null) {
   // Reset chart mode button styling
   setStockChartMode(state.stockChartMode || 'candle');
 
-  // 8. Load Google Finance Candlestick data & render
-  await loadStockChart(symbol, state.stockTimeframe || '1D');
+  // 8. Load Angel One / TradingView Live Graph directly in modal
+  loadAngelOneTradingViewWidget(symbol);
 }
 
 function closeStockModal() {
   const modal = document.getElementById('stock-modal');
   if (modal) modal.classList.add('hidden');
+  const widgetEl = document.getElementById('tradingview-live-widget');
+  if (widgetEl) widgetEl.innerHTML = '';
   if (state.charts.modalChart) {
     state.charts.modalChart.destroy();
     state.charts.modalChart = null;

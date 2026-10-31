@@ -224,3 +224,35 @@ body {
   }
 }
 
+
+
+/* Futuristic Pop-Up Hover Animation for Top Movers (Screenshot 4) */
+.mover-card-pop {
+  position: relative;
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.28s ease, border-color 0.28s ease, background-color 0.28s ease;
+  will-change: transform, box-shadow;
+  z-index: 1;
+}
+
+.mover-card-pop:hover {
+  transform: translateY(-4px) scale(1.025);
+  z-index: 10;
+}
+
+.mover-card-pop.mover-gainer:hover {
+  border-color: rgba(16, 185, 129, 0.8) !important;
+  box-shadow: 0 10px 25px -3px rgba(16, 185, 129, 0.35), 0 0 20px rgba(16, 185, 129, 0.25) !important;
+  background-color: rgba(6, 78, 59, 0.25) !important;
+}
+
+.mover-card-pop.mover-loser:hover {
+  border-color: rgba(244, 63, 94, 0.8) !important;
+  box-shadow: 0 10px 25px -3px rgba(244, 63, 94, 0.35), 0 0 20px rgba(244, 63, 94, 0.25) !important;
+  background-color: rgba(136, 19, 55, 0.25) !important;
+}
+
+.mover-card-pop.mover-intraday:hover {
+  border-color: rgba(245, 158, 11, 0.8) !important;
+  box-shadow: 0 10px 25px -3px rgba(245, 158, 11, 0.35), 0 0 20px rgba(245, 158, 11, 0.25) !important;
+  background-color: rgba(120, 53, 15, 0.25) !important;
+}
