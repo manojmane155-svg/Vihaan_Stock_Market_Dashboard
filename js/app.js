@@ -496,24 +496,35 @@ function renderKPIs() {
         const universe = isNext50 ? 'Next 50' : 'Nifty 50';
         const discountText = stock.discount_from_high ? `${stock.discount_from_high}% off 52W High` : '';
 
+        const profile = getStockFuturisticProfile(stock.symbol, isNext50 ? 'next50' : 'nifty50', 'radar', stock);
         return `
-          <div onclick="openStockModal('${stock.symbol}', '${isNext50 ? 'next50' : 'nifty50'}', 'radar')" class="cursor-pointer flex flex-col justify-between p-3 rounded-xl bg-emerald-950/30 border border-emerald-800/50 hover:border-emerald-400 transition-all hover:shadow-lg hover:shadow-emerald-950/50">
-            <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-sm">${stock.symbol}</span>
-              <span class="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">${universe}</span>
-            </div>
-            
-            <div class="my-2">
-              <div class="text-xs text-slate-300">Live Price: <strong class="text-white">${stock.price ? '₹' + stock.price.toLocaleString('en-IN') : '--'}</strong></div>
-              ${discountText ? `<div class="text-[10px] text-emerald-400 font-medium">${discountText}</div>` : ''}
+          <div onclick="openStockModal('${stock.symbol}', '${isNext50 ? 'next50' : 'nifty50'}', 'radar')" class="cursor-pointer group flex flex-col justify-between p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 via-[#0a1122] to-slate-950 border border-cyan-500/40 hover:border-cyan-400 hover:shadow-[0_0_25px_rgba(6,182,212,0.3)] transition-all transform hover:-translate-y-1 relative select-none">
+            <!-- Center Glowing Circular Ring & Stock Emblem (Screenshot replica) -->
+            <div class="flex flex-col items-center text-center my-1">
+              <div class="w-14 h-14 rounded-full border-2 border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.5)] ring-2 ring-cyan-500/25 flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950/60 p-1.5 transition-transform duration-300 group-hover:scale-110">
+                <div class="w-full h-full rounded-full flex flex-col items-center justify-center font-black text-white text-xs tracking-wider bg-gradient-to-br ${profile.bg}">
+                  <span class="text-base leading-none">${profile.emoji}</span>
+                  <span class="text-[8px] font-mono font-bold">${profile.text}</span>
+                </div>
+              </div>
+              <span class="font-black text-white text-base tracking-tight mt-2 group-hover:text-cyan-300 transition-colors">${stock.symbol}</span>
+              <span class="text-[10px] font-bold text-cyan-300 bg-slate-900/90 px-2 py-0.5 rounded-full border border-cyan-500/30 mt-1 whitespace-nowrap">${profile.sector.split('•')[0].trim()}</span>
             </div>
 
-            <div class="flex items-center justify-between pt-1 border-t border-emerald-900/40">
-              <span class="inline-flex items-center gap-1 font-bold text-emerald-400 text-xs">
+            <!-- Price & Opportunity Metric -->
+            <div class="text-center my-2 border-t border-slate-800/80 pt-2">
+              <div class="text-[11px] text-slate-400 font-medium">Live Market Price</div>
+              <div class="text-base font-black text-white font-mono mt-0.5">${stock.price ? '₹' + stock.price.toLocaleString('en-IN') : '--'}</div>
+              ${discountText ? `<div class="text-[10px] text-cyan-400 font-bold mt-0.5">${discountText}</div>` : ''}
+            </div>
+
+            <!-- Bottom RSI & Inspect CTA -->
+            <div class="flex items-center justify-between pt-2 border-t border-slate-800/80">
+              <span class="inline-flex items-center gap-1 font-black text-emerald-400 text-xs">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span>
                 RSI: ${stock.rsi !== null ? stock.rsi : '--'}
               </span>
-              <button onclick="event.stopPropagation(); openStockModal('${stock.symbol}', '${isNext50 ? 'next50' : 'nifty50'}', 'radar')" class="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500 text-slate-950 hover:bg-emerald-400 active:scale-95 transition-all">BUY NOW</button>
+              <button onclick="event.stopPropagation(); openStockModal('${stock.symbol}', '${isNext50 ? 'next50' : 'nifty50'}', 'radar')" class="text-[10px] font-bold px-2 py-1 rounded-lg bg-cyan-500 text-slate-950 hover:bg-cyan-400 active:scale-95 transition-all shadow-sm">INSPECT</button>
             </div>
           </div>
         `;
@@ -664,15 +675,20 @@ function promptAddToWatchlist() {
 function syncModalWatchlistButton(symbol) {
   const btnText = document.getElementById('modal-watchlist-text');
   const btn = document.getElementById('modal-watchlist-btn');
+  const icon = document.getElementById('modal-watchlist-icon');
   if (!btn || !symbol) return;
   const list = getWatchlistSymbols();
   const inList = list.includes(symbol.toUpperCase());
   if (inList) {
-    btn.className = 'px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-slate-950 border border-amber-400 flex items-center gap-1 transition-all shadow-sm';
+    btn.className = 'w-7 h-7 rounded-lg bg-amber-500 text-slate-950 border border-amber-400 flex items-center justify-center text-xs transition-transform hover:scale-110 shadow';
     if (btnText) btnText.innerText = 'In Watchlist ★';
+    if (icon) icon.innerText = '★';
+    btn.title = 'Remove from Watchlist';
   } else {
-    btn.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 flex items-center gap-1 transition-all';
+    btn.className = 'w-7 h-7 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-amber-300 flex items-center justify-center text-xs transition-transform hover:scale-110 shadow';
     if (btnText) btnText.innerText = 'Watchlist ⭐';
+    if (icon) icon.innerText = '⭐';
+    btn.title = 'Add to Watchlist';
   }
 }
 
@@ -749,32 +765,32 @@ function renderWatchlistBar() {
     const rsiColor = getRsiColor(s.rsi);
     const discStr = s.discount_from_high ? `${s.discount_from_high}% off 52W H` : '';
 
+    const profile = getStockFuturisticProfile(sym, 'nifty50', 'watchlist', s);
     return `
-      <div onclick="openStockModal('${sym}')" title="Click to inspect ${sym}" class="bg-white rounded-xl p-3 shadow-md hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer select-none group ${borderClass} flex flex-col justify-between relative">
+      <div onclick="openStockModal('${sym}')" title="Click to inspect ${sym}" class="bg-gradient-to-br from-slate-900/90 via-[#0a1122] to-slate-950 border border-cyan-500/40 hover:border-cyan-400 hover:shadow-[0_0_20px_rgba(6,182,212,0.25)] rounded-2xl p-4 transition-all hover:scale-[1.02] cursor-pointer select-none group flex flex-col justify-between relative">
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-1.5">
-            <span class="text-xs font-black text-slate-900 tracking-tight group-hover:text-cyan-700 transition-colors">${sym}</span>
-            <span class="text-[9px] font-bold text-slate-500 bg-slate-100 px-1 py-0.2 rounded font-mono">${s.code || 'NSE'}</span>
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-full border border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)] flex items-center justify-center bg-gradient-to-br ${profile.bg}">
+              <span class="text-xs leading-none">${profile.emoji}</span>
+            </div>
+            <div>
+              <span class="text-xs font-black text-white tracking-tight group-hover:text-cyan-300 transition-colors">${sym}</span>
+              <div class="text-[9px] font-bold text-cyan-300/80 font-mono">${s.code || 'NSE:' + sym}</div>
+            </div>
           </div>
-          <button onclick="event.stopPropagation(); removeFromWatchlist('${sym}')" title="Remove from Watchlist" class="w-5 h-5 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 text-xs font-bold transition-all">
-            &times;
+          <button onclick="event.stopPropagation(); removeFromWatchlist('${sym}')" title="Remove from Watchlist" class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-400 hover:bg-slate-800 text-xs font-bold transition-all border border-transparent hover:border-rose-500/40">
+            ✕
           </button>
         </div>
 
-        <div class="my-1">
-          <span class="text-lg font-black tracking-tight ${textPriceClass}">${priceStr}</span>
+        <div class="my-2 py-1.5 border-y border-slate-800/80">
+          <div class="text-base font-black text-white font-mono">${priceStr}</div>
+          <div class="text-xs font-bold ${isPos ? 'text-emerald-400' : 'text-rose-400'} font-mono">${chgStr} <span class="text-[10px]">${pctStr}</span></div>
         </div>
 
-        <div class="flex items-center justify-between text-xs font-bold pt-0.5">
-          <span class="${textPriceClass}">${chgStr} <span class="text-[10px] font-normal">${pctStr}</span></span>
-          <span class="text-[10px] font-bold font-mono px-1 rounded bg-slate-100" style="color: ${rsiColor}">RSI ${rsiVal}</span>
-        </div>
-
-        ${discStr ? `<div class="mt-1 text-[10px] text-cyan-700 font-semibold truncate">${discStr}</div>` : ''}
-
-        <div class="mt-2 pt-1 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 group-hover:text-cyan-600 transition-colors">
-          <span>Watchlist Live</span>
-          <span class="font-bold flex items-center gap-0.5">Chart 🕯️ &gt;</span>
+        <div class="flex items-center justify-between text-[10px]">
+          <span class="px-2 py-0.5 rounded-full bg-slate-900 text-cyan-300 border border-cyan-500/30 font-semibold truncate max-w-[110px]">${profile.sector.split('•')[0].trim()}</span>
+          <span class="font-bold font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800" style="color: ${rsiColor}">RSI ${rsiVal}</span>
         </div>
       </div>
     `;
@@ -2607,6 +2623,72 @@ function renderMarketDatesChart() {
   });
 }
 
+// Futuristic Brand Emblem & Sector Identifier (Screenshot 1: Futuristic Cyber Card)
+function getStockFuturisticProfile(symbol, universe, source, stockMeta = {}) {
+  const sym = (symbol || '').toUpperCase().trim();
+  
+  const profiles = {
+    'PETRONET': { emoji: '🔥', text: 'PET', bg: 'from-cyan-500 to-blue-700', sector: 'LNG & Gas Logistics • Breakout Buy' },
+    'ORIENTELEC': { emoji: '⚡', text: 'OEL', bg: 'from-amber-400 to-orange-600', sector: 'Electrical Consumer • Breakout Buy' },
+    'SBICARD': { emoji: '💳', text: 'SBI', bg: 'from-sky-500 to-blue-700', sector: 'Credit Cards & Fintech • Breakout Buy' },
+    'RELIANCE': { emoji: '👑', text: 'RIL', bg: 'from-blue-600 to-indigo-900', sector: 'Energy & Telecom • NIFTY 50' },
+    'TCS': { emoji: '💻', text: 'TCS', bg: 'from-purple-600 to-indigo-800', sector: 'IT Services • NIFTY 50' },
+    'INFY': { emoji: '🚀', text: 'INF', bg: 'from-blue-500 to-cyan-600', sector: 'IT Consulting • NIFTY 50' },
+    'HDFCBANK': { emoji: '🏦', text: 'HDFC', bg: 'from-blue-900 to-rose-700', sector: 'Private Banking • NIFTY 50' },
+    'ICICIBANK': { emoji: '🏛️', text: 'ICICI', bg: 'from-orange-600 to-amber-700', sector: 'Private Banking • NIFTY 50' },
+    'SBIN': { emoji: '🏛️', text: 'SBI', bg: 'from-sky-500 to-blue-700', sector: 'PSU Banking • NIFTY 50' },
+    'TATAMOTORS': { emoji: '🚗', text: 'TATA', bg: 'from-blue-700 to-slate-900', sector: 'Automotive & EV • NIFTY 50' },
+    'TATASTEEL': { emoji: '🏗️', text: 'STEEL', bg: 'from-slate-600 to-cyan-800', sector: 'Steel & Materials • NIFTY 50' },
+    'BHARTIARTL': { emoji: '📡', text: 'AIR', bg: 'from-rose-600 to-red-800', sector: 'Telecom 5G • NIFTY 50' },
+    'ITC': { emoji: '🌿', text: 'ITC', bg: 'from-emerald-600 to-teal-800', sector: 'FMCG & Hotels • NIFTY 50' },
+    'LT': { emoji: '⚙️', text: 'L&T', bg: 'from-amber-600 to-slate-800', sector: 'Engineering & Infra • NIFTY 50' },
+    'CIPLA': { emoji: '💊', text: 'CIP', bg: 'from-teal-500 to-emerald-700', sector: 'Pharma & Healthcare • NIFTY 50' },
+    'HEROMOTOCO': { emoji: '🏍️', text: 'HERO', bg: 'from-red-600 to-slate-800', sector: '2-Wheelers • NIFTY 50' },
+    'GOLDBEES': { emoji: '🪙', text: 'GOLD', bg: 'from-amber-400 to-yellow-600', sector: 'Physical Gold • Commodity ETF' },
+    'SILVERBEES': { emoji: '🥈', text: 'SLVR', bg: 'from-slate-300 to-slate-600', sector: 'Physical Silver • Commodity ETF' },
+    'NIFTYBEES': { emoji: '📈', text: 'NIFTY', bg: 'from-emerald-500 to-cyan-700', sector: 'NIFTY 50 Index • Benchmark ETF' },
+    'BANKBEES': { emoji: '🏦', text: 'BANK', bg: 'from-blue-600 to-indigo-800', sector: 'Bank Nifty • Sectoral ETF' },
+    'ITBEES': { emoji: '💻', text: 'IT', bg: 'from-purple-500 to-blue-700', sector: 'Nifty IT Index • Sectoral ETF' }
+  };
+
+  if (profiles[sym]) {
+    return profiles[sym];
+  }
+
+  let emoji = '📊';
+  if (sym.includes('BEES') || sym.includes('ETF')) emoji = '📦';
+  else if (sym.includes('BANK')) emoji = '🏦';
+  else if (sym.includes('TECH') || sym.includes('IT')) emoji = '💻';
+  else if (sym.includes('POWER') || sym.includes('ENERGY')) emoji = '⚡';
+  else if (sym.includes('AUTO') || sym.includes('MOTOR')) emoji = '🚗';
+  else if (sym.includes('PHARMA') || sym.includes('LAB')) emoji = '💊';
+
+  const gradients = [
+    'from-cyan-600 to-blue-800',
+    'from-emerald-600 to-teal-800',
+    'from-purple-600 to-indigo-900',
+    'from-amber-500 to-orange-700',
+    'from-rose-600 to-pink-800',
+    'from-sky-500 to-indigo-700'
+  ];
+  const charCodeSum = sym.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const bg = gradients[charCodeSum % gradients.length];
+
+  let sector = `${universe === 'next50' ? 'NIFTY NEXT 50' : 'NIFTY 50'} • Large Cap`;
+  if (source === 'breakout' || source === 'radar') sector = `Momentum Radar • Breakout Candidate`;
+  if (sym.includes('BEES') || sym.includes('ETF') || stockMeta.category) {
+    sector = `${stockMeta.category || 'Index'} • Exchange Traded Fund`;
+  }
+
+  return {
+    emoji,
+    text: sym.slice(0, 4),
+    bg,
+    sector
+  };
+}
+
+
 // 5. Stock Modal Analyzer (Google Finance Style Candlestick & Volume Terminal)
 async function openStockModal(symbol, universe = 'nifty50', source = null) {
   const modal = document.getElementById('stock-modal');
@@ -2687,24 +2769,62 @@ async function openStockModal(symbol, universe = 'nifty50', source = null) {
     statusEl.innerHTML = signalInfo.modalBadgeHtml;
   }
 
-  // 6. RSI, 52W High Discount, 52W Low Buffer
+  // 6. RSI, 52W High Discount, 52W Low Buffer & Futuristic Profile
+  const profile = getStockFuturisticProfile(symbol, universe, source, stockMeta);
+  const emblemEl = document.getElementById('modal-stock-emblem');
+  const iconEmojiEl = document.getElementById('modal-stock-icon-emoji');
+  const emblemTextEl = document.getElementById('modal-stock-emblem-text');
+  const catPillEl = document.getElementById('modal-stock-category-pill');
+  const extLinkEl = document.getElementById('modal-external-link');
+
+  if (emblemEl) {
+    emblemEl.className = `w-full h-full rounded-full flex flex-col items-center justify-center font-black text-white text-base sm:text-lg tracking-wider bg-gradient-to-br ${profile.bg} shadow-inner`;
+  }
+  if (iconEmojiEl) iconEmojiEl.innerText = profile.emoji;
+  if (emblemTextEl) emblemTextEl.innerText = profile.text;
+  if (catPillEl) catPillEl.innerText = profile.sector;
+  if (extLinkEl) extLinkEl.href = `https://www.google.com/finance/quote/${encodeURIComponent(symbol)}:NSE`;
+
   const rsiEl = document.getElementById('modal-stock-rsi');
+  const rsiZoneEl = document.getElementById('modal-stock-rsi-zone');
   if (rsiEl) {
     rsiEl.innerText = stockMeta.rsi !== null && stockMeta.rsi !== undefined ? stockMeta.rsi : '--';
     rsiEl.style.color = getRsiColor(stockMeta.rsi);
+  }
+  if (rsiZoneEl) {
+    const rsi = stockMeta.rsi;
+    if (rsi === null || rsi === undefined) {
+      rsiZoneEl.innerText = 'Awaiting Data';
+      rsiZoneEl.className = 'text-[10px] text-slate-400 font-semibold mt-0.5';
+    } else if (rsi <= 30) {
+      rsiZoneEl.innerText = '🚨 Extreme Oversold';
+      rsiZoneEl.className = 'text-[10px] text-rose-400 font-semibold mt-0.5';
+    } else if (rsi <= 35) {
+      rsiZoneEl.innerText = '💎 Value Accumulation';
+      rsiZoneEl.className = 'text-[10px] text-emerald-400 font-semibold mt-0.5';
+    } else if (rsi <= 55) {
+      rsiZoneEl.innerText = '⚖️ Neutral / Recovery';
+      rsiZoneEl.className = 'text-[10px] text-cyan-400 font-semibold mt-0.5';
+    } else if (rsi <= 70) {
+      rsiZoneEl.innerText = '🚀 Bullish Momentum';
+      rsiZoneEl.className = 'text-[10px] text-blue-400 font-semibold mt-0.5';
+    } else {
+      rsiZoneEl.innerText = '🔥 Overbought Alert';
+      rsiZoneEl.className = 'text-[10px] text-purple-400 font-semibold mt-0.5';
+    }
   }
 
   const discEl = document.getElementById('modal-stock-disc');
   if (discEl) {
     discEl.innerText = stockMeta.discount_from_high !== null && stockMeta.discount_from_high !== undefined
-      ? `${stockMeta.discount_from_high}% off 52W H`
+      ? `${stockMeta.discount_from_high}%`
       : '--';
   }
 
   const bufEl = document.getElementById('modal-stock-buf');
   if (bufEl) {
     bufEl.innerText = stockMeta.buffer_from_low !== null && stockMeta.buffer_from_low !== undefined
-      ? `+${stockMeta.buffer_from_low}% from Low`
+      ? `+${stockMeta.buffer_from_low}%`
       : '--';
   }
 
