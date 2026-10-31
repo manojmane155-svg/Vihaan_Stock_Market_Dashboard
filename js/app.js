@@ -517,7 +517,7 @@ function renderKPIs() {
         const shortIndexTag = isNext50 ? 'NEXT 50' : 'NIFTY 50';
 
         return `
-          <div onclick="handleInspectStock('${stock.symbol}', '${isNext50 ? 'next50' : 'nifty50'}', 'radar')" class="cursor-pointer group p-2.5 sm:p-3 rounded-xl bg-gradient-to-br from-slate-900/90 via-[#0a1122] to-slate-950 border border-cyan-500/40 hover:border-cyan-400 hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all transform hover:-translate-y-0.5 relative select-none flex flex-col justify-between">
+          <div onclick="handleInspectStock('${stock.symbol}', '${isNext50 ? 'next50' : 'nifty50'}', 'radar')" class="stock-card-pop cursor-pointer group p-2.5 sm:p-3 rounded-xl bg-gradient-to-br from-slate-900/90 via-[#0a1122] to-slate-950 border border-cyan-500/40 relative select-none flex flex-col justify-between">
             <!-- Compact Top Row: 36px Glowing Avatar + Symbol + Index Tag -->
             <div class="flex items-center justify-between gap-1.5">
               <div class="flex items-center gap-2 min-w-0">
@@ -739,7 +739,42 @@ function renderWatchlistPresets() {
   }).join('');
 }
 
-function toggleWatchlistStock(sym) {
+let watchlistSearchDebounce = null;
+let lastLiveSearchResults = [];
+
+function getCustomStockMetaMap() {
+  try {
+    return JSON.parse(localStorage.getItem('manoj_custom_stocks_meta') || '{}');
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveCustomStockMeta(meta) {
+  if (!meta || !meta.symbol) return;
+  try {
+    const existing = getCustomStockMetaMap();
+    existing[meta.symbol.toUpperCase()] = {
+      symbol: meta.symbol.toUpperCase(),
+      name: meta.name || meta.symbol,
+      price: meta.price || 0,
+      live_price: meta.price || 0,
+      change: meta.change || 0,
+      change_pct: meta.change_pct || 0,
+      exchange: meta.exchange || 'NSE',
+      tag: meta.exchange ? `${meta.exchange} • Equity` : 'NSE • Stock',
+      last_updated: new Date().toISOString()
+    };
+    localStorage.setItem('manoj_custom_stocks_meta', JSON.stringify(existing));
+  } catch (e) {
+    console.warn('[Watchlist] Save custom meta error:', e);
+  }
+}
+
+function toggleWatchlistStock(sym, meta = null) {
+  if (meta) {
+    saveCustomStockMeta(meta);
+  }
   toggleWatchlist(sym);
   renderWatchlistPresets();
   const input = document.getElementById('watchlist-search-input');
@@ -750,10 +785,12 @@ function filterWatchlistSearch(query) {
   const resultsContainer = document.getElementById('watchlist-search-results');
   if (!resultsContainer) return;
 
-  const q = (query || '').trim().toUpperCase();
+  const rawQ = (query || '').trim();
+  const q = rawQ.toUpperCase();
   const currentWatchlist = getWatchlistSymbols();
+  const customMeta = getCustomStockMetaMap();
 
-  // Gather all unique stocks from our datasets
+  // Gather all unique stocks from local datasets
   const allStocksMap = new Map();
 
   const addListToMap = (list, tag) => {
@@ -763,7 +800,8 @@ function filterWatchlistSearch(query) {
           symbol: s.symbol,
           name: s.company_name || s.name || s.symbol,
           price: s.live_price || s.price || s.cmp || s.sheet_cmp || 0,
-          change_pct: s.change_pct !== undefined ? s.change_pct : (s.change || 0),
+          change: s.change || 0,
+          change_pct: s.change_pct !== undefined ? s.change_pct : 0,
           tag: tag
         });
       }
@@ -776,40 +814,61 @@ function filterWatchlistSearch(query) {
   addListToMap(window.TOP_500_STOCKS_DATA, 'TOP 500');
   addListToMap(window.ETF_DATA, 'ETF');
 
+  // Include custom saved stocks
+  Object.values(customMeta).forEach(cs => {
+    if (cs && cs.symbol && !allStocksMap.has(cs.symbol)) {
+      allStocksMap.set(cs.symbol, cs);
+    }
+  });
+
+  // Include any previously returned live server search results
+  lastLiveSearchResults.forEach(ls => {
+    if (ls && ls.symbol && !allStocksMap.has(ls.symbol)) {
+      allStocksMap.set(ls.symbol, {
+        symbol: ls.symbol,
+        name: ls.name || ls.symbol,
+        price: ls.price || 0,
+        change: ls.change || 0,
+        change_pct: ls.change_pct || 0,
+        tag: `${ls.exchange || 'NSE'} • Angel One`
+      });
+    }
+  });
+
   let matches = [];
   if (!q) {
-    // Show first 20 popular stocks
-    matches = Array.from(allStocksMap.values()).slice(0, 20);
+    matches = Array.from(allStocksMap.values()).slice(0, 25);
   } else {
     matches = Array.from(allStocksMap.values()).filter(s => {
       return s.symbol.toUpperCase().includes(q) || (s.name && s.name.toUpperCase().includes(q));
     }).slice(0, 30);
   }
 
-  // If query is not in list, provide a quick custom add option
-  let customOptionHtml = '';
-  if (q && !allStocksMap.has(q)) {
-    const isAdded = currentWatchlist.includes(q);
-    customOptionHtml = `
-      <div class="p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/50 flex items-center justify-between gap-3 mb-2">
-        <div class="flex items-center gap-2">
-          <span class="text-lg">⚡</span>
-          <div>
-            <div class="text-xs font-black text-white font-mono">NSE:${q}</div>
-            <div class="text-[10px] text-cyan-300">Custom Angel One / NSE Symbol</div>
-          </div>
-        </div>
-        <button onclick="toggleWatchlistStock('${q}')" class="px-3 py-1.5 rounded-lg ${isAdded ? 'bg-amber-500 text-slate-950' : 'bg-cyan-600 hover:bg-cyan-500 text-white'} text-xs font-bold transition-all shadow">
-          ${isAdded ? '★ In Watchlist' : '➕ Add to Watchlist'}
-        </button>
-      </div>
-    `;
+  // Trigger live background API query to Angel One / NSE for unindexed stocks (e.g. "Jio platform limited")
+  if (rawQ.length >= 2) {
+    if (watchlistSearchDebounce) clearTimeout(watchlistSearchDebounce);
+    watchlistSearchDebounce = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(rawQ)}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.results && json.results.length > 0) {
+            lastLiveSearchResults = json.results;
+            // Re-run filter to immediately render the newly found stocks with live quotes!
+            filterWatchlistSearch(rawQ);
+          }
+        }
+      } catch (err) {
+        console.warn('[WatchlistSearch] Live API search warning:', err);
+      }
+    }, 250);
   }
 
-  if (matches.length === 0 && !customOptionHtml) {
+  if (matches.length === 0) {
     resultsContainer.innerHTML = `
-      <div class="py-6 text-center text-slate-500 text-xs">
-        No stocks matching "${q}". You can type any valid NSE symbol to add it directly.
+      <div class="py-8 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
+        <span class="w-5 h-5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></span>
+        <span>Searching Angel One &amp; NSE Live Feed for "${rawQ}"...</span>
       </div>
     `;
     return;
@@ -817,22 +876,30 @@ function filterWatchlistSearch(query) {
 
   const itemsHtml = matches.map(s => {
     const isAdded = currentWatchlist.includes(s.symbol);
-    const priceStr = s.price ? `₹${s.price.toLocaleString('en-IN')}` : '';
+    const priceStr = s.price ? `₹${Number(s.price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '';
     const chgSign = (s.change_pct || 0) >= 0 ? '+' : '';
     const chgColor = (s.change_pct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400';
+    const sMetaJson = JSON.stringify({
+      symbol: s.symbol,
+      name: s.name,
+      price: s.price,
+      change: s.change,
+      change_pct: s.change_pct,
+      exchange: s.tag && s.tag.includes('BSE') ? 'BSE' : 'NSE'
+    }).replace(/"/g, '&quot;');
 
     return `
-      <div class="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-cyan-500/40 hover:bg-slate-900/80 transition-all flex items-center justify-between gap-2.5">
+      <div class="stock-card-pop p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-cyan-500/50 hover:bg-slate-900/90 transition-all flex items-center justify-between gap-2.5">
         <div class="flex items-center gap-2.5 min-w-0">
-          <div class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center font-black text-xs text-white shrink-0">
+          <div class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center font-black text-xs text-cyan-400 shrink-0">
             ${s.symbol.slice(0, 2)}
           </div>
           <div class="min-w-0">
             <div class="flex items-center gap-1.5">
               <span class="text-xs font-black text-white font-mono">${s.symbol}</span>
-              <span class="text-[9px] px-1.5 py-0.2 rounded bg-slate-900 text-slate-400 border border-slate-800 font-semibold">${s.tag}</span>
+              <span class="text-[9px] px-1.5 py-0.2 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-700/60 font-semibold">${s.tag || 'NSE'}</span>
             </div>
-            <div class="text-[11px] text-slate-400 truncate max-w-[220px]">${s.name}</div>
+            <div class="text-[11px] text-slate-300 truncate max-w-[260px] font-medium">${s.name}</div>
           </div>
         </div>
 
@@ -844,7 +911,7 @@ function filterWatchlistSearch(query) {
             </div>
           ` : ''}
 
-          <button onclick="toggleWatchlistStock('${s.symbol}')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow ${
+          <button onclick="toggleWatchlistStock('${s.symbol}', ${sMetaJson})" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow ${
             isAdded
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/50'
               : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-900/30'
@@ -856,7 +923,7 @@ function filterWatchlistSearch(query) {
     `;
   }).join('');
 
-  resultsContainer.innerHTML = customOptionHtml + itemsHtml;
+  resultsContainer.innerHTML = itemsHtml;
 }
 
 // Redirect old promptAddToWatchlist to the modern modal!
@@ -937,12 +1004,14 @@ function renderWatchlistBar() {
   const etfList = window.ETF_DATA || [];
 
   const cardsHtml = watchlist.map(sym => {
+    const customMeta = getCustomStockMetaMap();
     const s = bList.find(x => x.symbol === sym)
       || n50.find(x => x.symbol === sym)
       || next50.find(x => x.symbol === sym)
       || topList.find(x => x.symbol === sym)
       || etfList.find(x => x.symbol === sym)
-      || { symbol: sym, live_price: 250, change: 0, change_pct: 0, rsi: 50 };
+      || customMeta[sym]
+      || { symbol: sym, name: sym, live_price: 250, change: 0, change_pct: 0, rsi: 50 };
 
     const price = s.live_price || s.price || s.sheet_cmp || s.cmp || 0;
     const priceStr = price ? `₹${price.toLocaleString('en-IN')}` : '₹--';
@@ -959,7 +1028,7 @@ function renderWatchlistBar() {
 
     const profile = getStockFuturisticProfile(sym, 'nifty50', 'watchlist', s);
     return `
-      <div onclick="openStockModal('${sym}')" title="Click to inspect ${sym}" class="bg-gradient-to-br from-slate-900/90 via-[#0a1122] to-slate-950 border border-cyan-500/40 hover:border-cyan-400 hover:shadow-[0_0_20px_rgba(6,182,212,0.25)] rounded-2xl p-4 transition-all hover:scale-[1.02] cursor-pointer select-none group flex flex-col justify-between relative">
+      <div onclick="openStockModal('${sym}')" title="Click to inspect ${sym}" class="stock-card-pop watchlist-card bg-gradient-to-br from-slate-900/90 via-[#0a1122] to-slate-950 border border-cyan-500/40 rounded-2xl p-4 cursor-pointer select-none group flex flex-col justify-between relative">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <div class="w-8 h-8 rounded-full border border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)] flex items-center justify-center bg-gradient-to-br ${profile.bg}">
@@ -1368,11 +1437,11 @@ function renderMoversTable() {
     const signalBadge = getStockSignalInfo(s);
 
     return `
-      <tr class="hover:bg-slate-900/80 transition-colors">
+      <tr onclick="openStockModal('${s.symbol}')" class="stock-row-pop hover:bg-slate-900/80 transition-all cursor-pointer group">
         <td class="py-2.5 px-3 text-center text-slate-500 font-mono text-[11px]">${idx + 1}</td>
         <td class="py-2.5 px-3">
-          <div onclick="openStockModal('${s.symbol}')" class="font-black text-white hover:text-cyan-400 cursor-pointer transition-colors flex items-center gap-1.5">
-            <span>${s.symbol}</span>
+          <div class="font-black text-white flex items-center gap-1.5">
+            <span class="stock-symbol-text transition-colors">${s.symbol}</span>
           </div>
           <div class="text-[10px] text-slate-500 font-mono">${s.code || ''}</div>
         </td>
@@ -1964,11 +2033,11 @@ function renderBreakoutBuysTable(sortBy = state.breakoutSort || 'tightness') {
     const aiBadge = getBreakoutAiBadge(s.symbol, s);
 
     return `
-      <tr onclick="openStockModal('${s.symbol}', 'breakout')" class="border-b border-slate-800/80 hover:bg-slate-800/50 transition-colors cursor-pointer">
+      <tr onclick="openStockModal('${s.symbol}', 'breakout')" class="stock-row-pop border-b border-slate-800/80 hover:bg-slate-800/50 transition-all cursor-pointer group">
         <td class="py-3 px-3 text-xs text-slate-400 font-bold">${idx + 1}</td>
         <td class="py-3 px-4">
           <div class="flex items-center gap-2">
-            <span class="font-extrabold text-white">${s.symbol}</span>
+            <span class="stock-symbol-text font-extrabold text-white transition-colors">${s.symbol}</span>
             <span class="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded font-mono">${s.code}</span>
           </div>
         </td>
@@ -2040,10 +2109,10 @@ function renderTop500Table() {
     const rowBg = isBuy ? 'bg-emerald-950/25 hover:bg-emerald-950/40' : 'hover:bg-slate-800/40';
 
     return `
-      <tr onclick="openStockModal('${s.symbol}', 'top500')" class="border-b border-slate-800/80 ${rowBg} font-mono text-[11px] transition-colors cursor-pointer">
+      <tr onclick="openStockModal('${s.symbol}', 'top500')" class="stock-row-pop border-b border-slate-800/80 ${rowBg} font-mono text-[11px] transition-all cursor-pointer group">
         <td class="py-2.5 px-3 text-slate-400">${idx + 1}</td>
         <td class="py-2.5 px-3 font-sans font-bold text-white flex items-center gap-1.5">
-          <span>${s.symbol}</span>
+          <span class="stock-symbol-text transition-colors">${s.symbol}</span>
           <span class="text-[10px] font-normal text-slate-400 font-mono">(${s.code})</span>
         </td>
         <td class="py-2.5 px-3 text-right font-bold text-slate-100">${cmpStr}</td>
@@ -2145,7 +2214,7 @@ function renderEtfSpotlight(top5, isRsi) {
     const targetPrice = etf.cmp ? `₹${(etf.cmp * 1.035).toFixed(2)} (+3.5%)` : '--';
 
     return `
-      <div class="p-4 rounded-xl border ${borderClass} flex flex-col justify-between shadow-lg relative overflow-hidden group">
+      <div class="stock-card-pop etf-spotlight-card p-4 rounded-xl border ${borderClass} flex flex-col justify-between shadow-lg relative overflow-hidden group">
         <div>
           <div class="flex items-center justify-between mb-2">
             <span class="px-2 py-0.5 rounded text-[10px] tracking-wide uppercase ${rankBadgeClass}">${rankTitle}</span>
@@ -2247,11 +2316,11 @@ function renderEtfTable(etfs, isRsi) {
     const pct20DmaColor = (e.pct_20dma && e.pct_20dma < 0) ? 'text-rose-400' : 'text-emerald-400';
 
     return `
-      <tr class="border-b border-slate-800/80 ${rowBg} font-mono text-xs transition-colors">
+      <tr onclick="openStockModal('${e.symbol}', 'etf')" class="stock-row-pop border-b border-slate-800/80 ${rowBg} font-mono text-xs transition-all cursor-pointer group">
         <td class="py-3 px-3 text-center text-slate-400 font-bold">${e.dynamic_rank}</td>
         <td class="py-3 px-4 font-sans font-bold text-white">
           <div class="flex items-center gap-1.5">
-            <span class="text-cyan-400">${e.symbol}</span>
+            <span class="stock-symbol-text text-cyan-400 font-bold transition-colors">${e.symbol}</span>
             <span class="text-[10px] text-slate-500 font-mono">(${e.full_code || 'NSE:' + e.symbol})</span>
           </div>
         </td>
@@ -2333,11 +2402,11 @@ function renderNifty50Table() {
     }
 
     return `
-      <tr class="border-b border-slate-800/80 hover:bg-slate-800/50 transition-colors">
+      <tr onclick="openStockModal('${s.symbol}', 'nifty50')" class="stock-row-pop border-b border-slate-800/80 hover:bg-slate-800/50 transition-all cursor-pointer group">
         <td class="py-3 px-4 text-xs text-slate-400">${idx + 1}</td>
         <td class="py-3 px-4">
           <div class="flex items-center gap-2">
-            <span class="font-bold text-white">${s.symbol}</span>
+            <span class="stock-symbol-text font-bold text-white transition-colors">${s.symbol}</span>
             <span class="text-[11px] text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded">${s.code || 'NSE:' + s.symbol}</span>
           </div>
         </td>
@@ -2413,11 +2482,11 @@ function renderNext50Table() {
       : '';
 
     return `
-      <tr class="border-b border-slate-800/80 hover:bg-slate-800/50 transition-colors">
+      <tr onclick="openStockModal('${s.symbol}', 'next50')" class="stock-row-pop border-b border-slate-800/80 hover:bg-slate-800/50 transition-all cursor-pointer group">
         <td class="py-3 px-4 text-xs text-slate-400">${idx + 1}</td>
         <td class="py-3 px-4">
           <div class="flex items-center gap-2">
-            <span class="font-bold text-white">${s.symbol}</span>
+            <span class="stock-symbol-text font-bold text-white transition-colors">${s.symbol}</span>
             <span class="text-[11px] text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded">${s.code || 'NSE:' + s.symbol}</span>
           </div>
         </td>
@@ -3321,13 +3390,15 @@ async function openStockModal(symbol, universe = 'nifty50', source = null) {
     stockMeta = etfList.find(s => s.symbol === symbol);
   }
 
-  // Fallback search across all lists
-  if (!stockMeta) {
+  // Fallback search across all lists & custom saved stocks
+  if (!stockMeta || !stockMeta.symbol) {
+    const customStocks = getCustomStockMetaMap();
     stockMeta = breakoutList.find(s => s.symbol === symbol)
       || n50List.find(s => s.symbol === symbol)
       || next50List.find(s => s.symbol === symbol)
       || top500List.find(s => s.symbol === symbol)
       || etfList.find(s => s.symbol === symbol)
+      || customStocks[symbol.toUpperCase()]
       || {};
   }
 

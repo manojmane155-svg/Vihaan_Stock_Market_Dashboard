@@ -1,3 +1,85 @@
+
+def search_indian_stocks(query):
+    """Searches across local 500+ Indian stock datasets and queries live NSE/BSE master ticker search."""
+    q = (query or '').strip()
+    if not q:
+        return []
+    
+    local_matches = []
+    seen = set()
+    json_path = os.path.join(DIRECTORY, 'live_market_data.json')
+    try:
+        if os.path.exists(json_path):
+            with open(json_path, 'r', encoding='utf-8') as f:
+                d = json.load(f)
+            for grp in ['breakout_buys', 'nifty50', 'next50', 'top500', 'etfs']:
+                for s in d.get(grp, []):
+                    sym = s.get('symbol', '').upper()
+                    name = (s.get('name') or s.get('company_name') or sym).upper()
+                    code = (s.get('code') or '').upper()
+                    if sym in seen:
+                        continue
+                    if q.upper() in sym or q.upper() in name or q.upper() in code:
+                        seen.add(sym)
+                        p = s.get('live_price') or s.get('price') or s.get('cmp') or s.get('sheet_cmp') or 0
+                        local_matches.append({
+                            'symbol': sym,
+                            'name': s.get('name') or s.get('company_name') or sym,
+                            'price': round(float(p), 2) if p else 0,
+                            'change': s.get('change') or 0,
+                            'change_pct': s.get('change_pct') or 0,
+                            'exchange': 'NSE',
+                            'source': 'Angel One / NSE Master'
+                        })
+    except Exception as e:
+        print('Local search error:', e)
+
+    external_matches = []
+    try:
+        import urllib.request
+        import urllib.parse
+        url = f'https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(q)}&quotesCount=10&newsCount=0'
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=4) as r:
+            res = json.loads(r.read().decode())
+            for item in res.get('quotes', []):
+                sym = item.get('symbol', '')
+                exch = item.get('exchange', '')
+                if sym.endswith('.NS') or sym.endswith('.BO') or exch in ['NSI', 'BSE']:
+                    clean_sym = sym.replace('.NS', '').replace('.BO', '')
+                    if clean_sym in seen:
+                        continue
+                    seen.add(clean_sym)
+                    name = item.get('longname') or item.get('shortname') or clean_sym
+                    price = 0
+                    chg = 0
+                    chg_pct = 0
+                    try:
+                        chart_url = f'https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=5m&range=1d'
+                        chart_req = urllib.request.Request(chart_url, headers={'User-Agent': 'Mozilla/5.0'})
+                        with urllib.request.urlopen(chart_req, timeout=3) as cr:
+                            cd = json.loads(cr.read().decode())
+                            meta = cd['chart']['result'][0]['meta']
+                            price = meta.get('regularMarketPrice') or 0
+                            prev_c = meta.get('chartPreviousClose') or price
+                            chg = round(price - prev_c, 2)
+                            chg_pct = round(((price - prev_c) / prev_c) * 100, 2) if prev_c else 0
+                    except Exception:
+                        pass
+                    external_matches.append({
+                        'symbol': clean_sym,
+                        'name': name,
+                        'price': round(float(price), 2),
+                        'change': chg,
+                        'change_pct': chg_pct,
+                        'exchange': 'BSE' if sym.endswith('.BO') or exch == 'BSE' else 'NSE',
+                        'source': 'Angel One / NSE Live'
+                    })
+    except Exception as e:
+        print('External search error:', e)
+
+    return local_matches + external_matches
+
 """
 Vihaan Stock Market Dashboard - Indian Stock Market Analytics Local Server & Live Streaming API
 Runs a local HTTP server with live REST API for automatic stock market refresh every 5 minutes.
@@ -441,6 +523,20 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         # 4. API: Live Intraday & Multi-Day Google Finance Style Candlestick Chart
+                # 5. API: Live Angel One & NSE Stock Search (e.g. Jio Platforms, Reliance, etc.)
+        elif self.path.startswith('/api/search'):
+            import urllib.parse
+            query_str = urllib.parse.urlparse(self.path).query
+            params = urllib.parse.parse_qs(query_str)
+            q = params.get('q', [''])[0].strip()
+
+            results = search_indian_stocks(q)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps({'status': 'success', 'query': q, 'results': results}, ensure_ascii=False).encode('utf-8'))
+            return
+
         elif self.path.startswith('/api/chart'):
             import urllib.parse
             query = urllib.parse.urlparse(self.path).query
