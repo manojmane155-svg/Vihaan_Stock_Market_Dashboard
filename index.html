@@ -1265,33 +1265,88 @@
         </div>
       </div>
 
-      <!-- 4. Controls: Timeframe Pills & Area/Candle Toggle -->
-      <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
-        <!-- Timeframes: PO, CAS, 1D, 1M, 3M, 6M, 1Y (Screenshot 2) -->
-        <div class="flex items-center gap-1 sm:gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
-          <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('PO')">PO</button>
-          <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('CAS')">CAS</button>
-          <button class="index-tf-btn active px-2.5 py-1 rounded bg-cyan-600 text-white font-bold" onclick="setIndexTimeframe('1D')">1D</button>
-          <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('1M')">1M</button>
-          <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('3M')">3M</button>
-          <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('6M')">6M</button>
-          <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('1Y')">1Y</button>
+      <!-- 4. Angel One TradeOne Hub & Direct External Launch -->
+      <div class="rounded-2xl bg-gradient-to-r from-indigo-950/90 via-[#0d1527] to-slate-950 border-2 border-indigo-500/60 p-3 sm:p-3.5 shadow-[0_0_25px_rgba(99,102,241,0.25)] flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-indigo-600/30 border border-indigo-400 flex items-center justify-center text-lg shrink-0 shadow-inner">
+            ⚡
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="index-angel-title" class="text-xs sm:text-sm font-black text-white tracking-tight">Angel One TradeOne &bull; Real-Time Index Chart</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-indicator"></span> Synced
+              </span>
+            </div>
+            <div class="text-[11px] text-slate-400">
+              SuperTrend (10, 3) &bull; Moving Average (SMA 9) &bull; Volume &bull; 5-Minute Intraday Candlesticks
+            </div>
+          </div>
         </div>
 
-        <!-- Chart Mode Toggle: Area vs Candlestick -->
-        <div class="bg-slate-950 p-1 rounded-lg border border-slate-800 flex items-center gap-1 text-xs">
-          <button id="btn-index-area" onclick="setIndexChartMode('area')" class="px-3 py-1 rounded bg-cyan-600 text-white font-bold flex items-center gap-1.5 transition-all">
-            <span>📈</span> <span>Area Chart</span>
-          </button>
-          <button id="btn-index-candle" onclick="setIndexChartMode('candle')" class="px-3 py-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition-all">
-            <span>🕯️</span> <span>Candlestick</span>
-          </button>
+        <div class="flex flex-wrap items-center gap-2 shrink-0">
+          <a id="index-tradingview-direct-btn" href="https://in.tradingview.com" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 font-bold text-xs flex items-center gap-1.5 transition-all shadow">
+            <span>📈 TradingView</span>
+            <span class="text-xs">↗</span>
+          </a>
+          <a id="index-angel-one-btn" href="https://www.angelone.in/trade/tradeone/chart" target="_blank" rel="noopener noreferrer" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-lg shadow-indigo-950/50 transition-all hover:scale-105 active:scale-95">
+            <span>🚀 Open in Angel One Chart</span>
+            <span class="text-xs">↗</span>
+          </a>
         </div>
       </div>
 
-      <!-- 5. Interactive Chart Canvas -->
-      <div class="h-80 w-full relative bg-slate-950/40 rounded-xl p-2 border border-slate-800/60">
-        <canvas id="index-chart-canvas"></canvas>
+      <!-- 5. Live OHLCV HUD & Timeframe Toolbar -->
+      <div class="space-y-2 pt-1">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs px-2 py-1.5 bg-slate-950/80 rounded-xl border border-slate-800/80 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-500/50 flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-indicator"></span> SuperTrend (10, 3): <span id="index-leg-st" class="font-mono">--</span>
+            </span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-500/50 flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> SMA 9: <span id="index-leg-sma" class="font-mono">--</span>
+            </span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-500/50 flex items-center gap-1">
+              <span>📊</span> Vol: <span id="index-leg-vol" class="font-mono">--</span>
+            </span>
+          </div>
+
+          <div class="flex items-center gap-2.5 font-mono text-[11px] text-slate-300">
+            <span>O: <span id="index-leg-open" class="text-white">--</span></span>
+            <span>H: <span id="index-leg-high" class="text-white">--</span></span>
+            <span>L: <span id="index-leg-low" class="text-white">--</span></span>
+            <span>C: <span id="index-leg-close" class="text-emerald-400 font-bold">--</span></span>
+          </div>
+        </div>
+
+        <!-- Timeframe Toolbar -->
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs px-1">
+          <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+            <button class="index-tf-btn active px-2.5 py-1 rounded bg-cyan-600 text-white font-bold" onclick="setIndexTimeframe('1D')">1D</button>
+            <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('5D')">5D</button>
+            <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('1M')">1M</button>
+            <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('6M')">6M</button>
+            <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('YTD')">YTD</button>
+            <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('1Y')">1Y</button>
+            <button class="index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white" onclick="setIndexTimeframe('MAX')">MAX</button>
+          </div>
+
+          <div class="text-[11px] text-slate-400 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span>
+            <span>TradingView Engine &bull; Live NSE Index Candlesticks</span>
+          </div>
+        </div>
+
+        <!-- Embedded Interactive Terminal Container -->
+        <div id="index-lw-chart-container" class="h-[400px] sm:h-[450px] w-full relative bg-slate-950 rounded-2xl overflow-hidden border-2 border-indigo-500/50 shadow-[0_0_35px_rgba(99,102,241,0.25)]">
+          <div id="index-lw-chart-canvas" class="w-full h-full"></div>
+          <div id="index-lw-chart-spinner" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center hidden z-20">
+            <div class="flex items-center gap-2.5 text-cyan-400 text-xs font-bold font-mono">
+              <span class="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></span>
+              <span>Loading Live Index Candlesticks...</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Modal Footer -->

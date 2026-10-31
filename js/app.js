@@ -1112,41 +1112,51 @@ function renderIndicesBar() {
     if (idx.expiry_day) {
       const exp = getIndexExpiryInfo(idx.name, idx.expiry_day);
       expiryHtml = `
-        <div class="mt-1.5 py-0.5 px-2 bg-indigo-50/90 rounded border border-indigo-100 flex items-center justify-between text-[10px] whitespace-nowrap">
-          <span class="text-slate-500 font-semibold flex items-center gap-1">
+        <div class="mt-2 py-1 px-2.5 bg-slate-950/90 rounded-xl border border-slate-800/80 flex items-center justify-between text-[10px] whitespace-nowrap">
+          <span class="text-slate-400 font-semibold flex items-center gap-1">
             <span>📅</span> <span>Expiry:</span>
           </span>
-          <span class="font-extrabold text-indigo-700 font-mono tracking-tight">${exp.displayStr}</span>
+          <span class="font-extrabold text-cyan-400 font-mono tracking-tight">${exp.displayStr}</span>
         </div>
       `;
     } else {
       expiryHtml = `
-        <div class="mt-1.5 py-0.5 px-2 bg-amber-50/90 rounded border border-amber-100 flex items-center justify-between text-[10px] whitespace-nowrap">
-          <span class="text-amber-700 font-semibold flex items-center gap-1">
+        <div class="mt-2 py-1 px-2.5 bg-slate-950/90 rounded-xl border border-slate-800/80 flex items-center justify-between text-[10px] whitespace-nowrap">
+          <span class="text-amber-400 font-semibold flex items-center gap-1">
             <span>⚡</span> <span>Volatility:</span>
           </span>
-          <span class="font-extrabold text-amber-800 font-mono tracking-tight">Market Gauge</span>
+          <span class="font-extrabold text-amber-300 font-mono tracking-tight">Market Gauge</span>
         </div>
       `;
     }
 
     return `
-      <div onclick="openIndexModal('${idx.name}')" title="Click to view live intraday graph of ${idx.name}" class="bg-white rounded-xl p-3 shadow-md hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer select-none group ${borderClass} flex flex-col justify-between">
+      <div onclick="openIndexModal('${idx.name}')" title="Click to view live Angel One graph of ${idx.name}" class="stock-card-pop cursor-pointer select-none group flex flex-col justify-between p-3.5 rounded-2xl bg-gradient-to-br from-slate-900/95 via-[#0b1325] to-slate-950 border-2 ${isPos ? 'border-emerald-500/50 hover:border-emerald-400' : 'border-rose-500/50 hover:border-rose-400'} shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-all relative overflow-hidden">
+        <!-- Top Neon Beam Accent -->
+        <div class="absolute -top-1 left-1/2 -translate-x-1/2 w-28 h-1 ${isPos ? 'bg-gradient-to-r from-transparent via-emerald-400 to-transparent' : 'bg-gradient-to-r from-transparent via-rose-400 to-transparent'} blur-[2px]"></div>
+
         <div class="flex items-center justify-between">
-          <span class="text-xs font-black text-slate-900 tracking-tight group-hover:text-cyan-700 transition-colors">${idx.name}</span>
-          <span class="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded tracking-wider">${idx.exchange}</span>
+          <span class="text-xs font-black text-white tracking-tight group-hover:text-cyan-300 transition-colors flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full ${isPos ? 'bg-emerald-400' : 'bg-rose-400'} pulse-indicator"></span>
+            ${idx.name}
+          </span>
+          <span class="text-[9px] font-bold text-cyan-300 bg-slate-950/80 border border-cyan-500/40 px-2 py-0.5 rounded-full font-mono tracking-wider">${idx.exchange}</span>
         </div>
-        <div class="my-1.5">
-          <span class="text-lg font-black tracking-tight ${textPriceClass}">${priceStr}</span>
+
+        <div class="my-2">
+          <span class="text-2xl font-black font-mono tracking-tight text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.25)]">${priceStr}</span>
         </div>
-        <div class="flex items-center justify-between text-xs font-bold pt-0.5">
-          <span class="${textPriceClass}">${chgStr}</span>
-          <span class="text-[11px] font-bold px-1.5 py-0.5 rounded ${badgeBg}">${pctStr}</span>
+
+        <div class="flex items-center justify-between text-xs font-bold pt-0.5 font-mono">
+          <span class="${isPos ? 'text-emerald-400' : 'text-rose-400'}">${chgStr}</span>
+          <span class="text-[11px] font-black px-2 py-0.5 rounded-md ${isPos ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/50' : 'bg-rose-950/80 text-rose-300 border border-rose-500/50'}">${pctStr}</span>
         </div>
+
         ${expiryHtml}
-        <div class="mt-2 pt-1 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 group-hover:text-cyan-600 transition-colors">
-          <span>Live Intraday</span>
-          <span class="font-bold flex items-center gap-0.5">Live Graph 📊 &gt;</span>
+
+        <div class="mt-2.5 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 group-hover:text-cyan-300 transition-colors">
+          <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Live NSE</span>
+          <span class="font-extrabold text-cyan-400 group-hover:text-cyan-300 flex items-center gap-1">Angel One Graph ⚡ &gt;</span>
         </div>
       </div>
     `;
@@ -1475,7 +1485,9 @@ function renderMoversTable() {
   }).join('');
 }
 
-// Open Index Live Graph Modal (Screenshot 2 Live NIFTY 50 / Major Indices)
+let currentIndexLwChart = null;
+
+// Open Index Live Graph Modal with Angel One TradingView Lightweight Charts
 function openIndexModal(indexName = 'NIFTY 50', timeframe = '1D') {
   const modal = document.getElementById('index-modal');
   if (!modal) return;
@@ -1530,13 +1542,30 @@ function openIndexModal(indexName = 'NIFTY 50', timeframe = '1D') {
 
   // Open, High, Low
   const openEl = document.getElementById('modal-index-open');
-  if (openEl) openEl.innerText = idx.open ? idx.open.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--';
+  if (openEl) openEl.innerText = idx.open ? `₹${idx.open.toLocaleString('en-IN')}` : '--';
 
   const highEl = document.getElementById('modal-index-high');
-  if (highEl) highEl.innerText = idx.high ? idx.high.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--';
+  if (highEl) highEl.innerText = idx.high ? `₹${idx.high.toLocaleString('en-IN')}` : '--';
 
   const lowEl = document.getElementById('modal-index-low');
-  if (lowEl) lowEl.innerText = idx.low ? idx.low.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--';
+  if (lowEl) lowEl.innerText = idx.low ? `₹${idx.low.toLocaleString('en-IN')}` : '--';
+
+  // External Action Links (Angel One & TradingView)
+  const angelTitleEl = document.getElementById('index-angel-title');
+  if (angelTitleEl) angelTitleEl.innerText = `Angel One TradeOne • ${idx.name} Live Terminal`;
+
+  const angelBtn = document.getElementById('index-angel-one-btn');
+  if (angelBtn) {
+    angelBtn.href = 'https://www.angelone.in/trade/tradeone/chart';
+    angelBtn.innerHTML = `<span>🚀 Open ${idx.name} in Angel One Chart</span> <span class="text-xs">↗</span>`;
+  }
+
+  const tvBtn = document.getElementById('index-tradingview-direct-btn');
+  if (tvBtn) {
+    const tvSym = formatTradingViewSymbol(idx.name);
+    tvBtn.href = `https://in.tradingview.com/chart/?symbol=${encodeURIComponent(tvSym)}`;
+    tvBtn.title = `Open ${idx.name} on TradingView`;
+  }
 
   // Render Index Switcher Pills
   const pillsContainer = document.getElementById('index-pills-container');
@@ -1544,9 +1573,9 @@ function openIndexModal(indexName = 'NIFTY 50', timeframe = '1D') {
     pillsContainer.innerHTML = indices.map(i => {
       const active = i.name.toUpperCase() === state.selectedIndex.toUpperCase();
       const activeClass = active 
-        ? 'bg-cyan-500 text-slate-950 font-bold shadow-lg shadow-cyan-500/25' 
+        ? 'bg-cyan-500 text-slate-950 font-black shadow-lg shadow-cyan-500/30' 
         : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700';
-      return `<button onclick="openIndexModal('${i.name}')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeClass}">${i.name}</button>`;
+      return `<button onclick="openIndexModal('${i.name}')" class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${activeClass}">${i.name}</button>`;
     }).join('');
   }
 
@@ -1556,13 +1585,311 @@ function openIndexModal(indexName = 'NIFTY 50', timeframe = '1D') {
   // Show Modal
   modal.classList.remove('hidden');
 
-  // Render Index Chart
-  renderIndexChart();
+  // Render Index TradingView Lightweight Chart
+  loadIndexLightweightChart(idx.name, timeframe);
 }
 
 function closeIndexModal() {
   const modal = document.getElementById('index-modal');
   if (modal) modal.classList.add('hidden');
+  if (currentIndexLwChart) {
+    try { currentIndexLwChart.remove(); } catch (e) {}
+    currentIndexLwChart = null;
+  }
+}
+
+function setIndexTimeframe(tf) {
+  state.indexTimeframe = tf;
+  document.querySelectorAll('.index-tf-btn').forEach(btn => {
+    if (btn.innerText.trim().toUpperCase() === tf.toUpperCase()) {
+      btn.className = 'index-tf-btn active px-2.5 py-1 rounded bg-cyan-600 text-white font-bold transition-all';
+    } else {
+      btn.className = 'index-tf-btn px-2.5 py-1 rounded text-slate-400 hover:text-white transition-all';
+    }
+  });
+  if (state.selectedIndex) {
+    loadIndexLightweightChart(state.selectedIndex, tf);
+  }
+}
+
+async function loadIndexLightweightChart(indexName, timeframe = '1D') {
+  const container = document.getElementById('index-lw-chart-canvas');
+  if (!container) return;
+
+  const spinner = document.getElementById('index-lw-chart-spinner');
+  if (spinner) spinner.classList.remove('hidden');
+
+  const tf = (timeframe || state.indexTimeframe || '1D').toUpperCase();
+  state.indexTimeframe = tf;
+
+  // 1. Fetch candles from API (/api/chart)
+  let chartData = null;
+  try {
+    const res = await fetch(`${API_BASE}/api/chart?symbol=${encodeURIComponent(indexName)}&range=${tf.toLowerCase()}`);
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.candles && json.candles.length > 0) {
+        chartData = json;
+      }
+    }
+  } catch (err) {
+    console.warn('[IndexChart] API fetch error:', err);
+  }
+
+  if (!chartData || !chartData.candles || chartData.candles.length === 0) {
+    chartData = generateClientStockFallback(indexName, tf);
+  }
+
+  if (spinner) spinner.classList.add('hidden');
+
+  if (!chartData || !chartData.candles || chartData.candles.length === 0) {
+    container.innerHTML = '<div class="h-full flex items-center justify-center text-xs text-slate-500 font-mono">No candle data available for ' + indexName + '</div>';
+    return;
+  }
+
+  // 2. Prepare strictly ascending timestamp candles
+  const rawCandles = chartData.candles;
+  const candleMap = new Map();
+
+  rawCandles.forEach(c => {
+    let t = c.timestamp;
+    if (!t) {
+      if (c.time && typeof c.time === 'string' && c.time.includes(':')) {
+        const today = new Date();
+        const [timePart, ampm] = c.time.split(' ');
+        let [h, m] = timePart.split(':').map(Number);
+        if (ampm === 'PM' && h < 12) h += 12;
+        if (ampm === 'AM' && h === 12) h = 0;
+        today.setHours(h, m, 0, 0);
+        t = Math.floor(today.getTime() / 1000);
+      } else {
+        t = Math.floor(Date.now() / 1000);
+      }
+    } else if (typeof t === 'string') {
+      t = Math.floor(new Date(t).getTime() / 1000);
+    }
+
+    t = Math.floor(Number(t));
+    if (isNaN(t) || t <= 0) return;
+
+    candleMap.set(t, {
+      time: t,
+      open: Number(c.open),
+      high: Number(c.high),
+      low: Number(c.low),
+      close: Number(c.close),
+      volume: Number(c.volume || 0)
+    });
+  });
+
+  const validCandles = Array.from(candleMap.values()).sort((a, b) => a.time - b.time);
+  if (validCandles.length === 0) return;
+
+  // 3. Compute indicators
+  const volData = validCandles.map(c => ({
+    time: c.time,
+    value: c.volume,
+    color: c.close >= c.open ? 'rgba(16, 185, 129, 0.45)' : 'rgba(244, 63, 94, 0.45)'
+  }));
+
+  const smaData = [];
+  const smaPeriod = 9;
+  for (let i = 0; i < validCandles.length; i++) {
+    if (i < smaPeriod - 1) continue;
+    let sum = 0;
+    for (let j = 0; j < smaPeriod; j++) {
+      sum += validCandles[i - j].close;
+    }
+    smaData.push({
+      time: validCandles[i].time,
+      value: parseFloat((sum / smaPeriod).toFixed(2))
+    });
+  }
+
+  const stData = [];
+  if (chartData.supertrend && chartData.supertrend.values && chartData.supertrend.values.length === rawCandles.length) {
+    for (let i = 0; i < validCandles.length; i++) {
+      const v = chartData.supertrend.values[i];
+      if (v !== undefined && v !== null && !isNaN(v)) {
+        stData.push({
+          time: validCandles[i].time,
+          value: Number(v)
+        });
+      }
+    }
+  } else {
+    const calcST = computeClientSupertrend(validCandles, 10, 3);
+    stData.push(...calcST);
+  }
+
+  // 4. Create LightweightCharts instance
+  if (currentIndexLwChart) {
+    try { currentIndexLwChart.remove(); } catch (e) {}
+    currentIndexLwChart = null;
+  }
+  container.innerHTML = '';
+
+  if (typeof LightweightCharts === 'undefined') {
+    console.error('LightweightCharts is not loaded');
+    return;
+  }
+
+  const chart = LightweightCharts.createChart(container, {
+    width: container.clientWidth || 800,
+    height: container.clientHeight || 420,
+    layout: {
+      background: { type: 'solid', color: '#020617' },
+      textColor: '#94a3b8',
+      fontSize: 11,
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
+    },
+    grid: {
+      vertLines: { color: 'rgba(30, 41, 59, 0.4)' },
+      horzLines: { color: 'rgba(30, 41, 59, 0.4)' }
+    },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: {
+        color: '#38bdf8',
+        width: 1,
+        style: LightweightCharts.LineStyle.Dashed,
+        labelBackgroundColor: '#0284c7'
+      },
+      horzLine: {
+        color: '#38bdf8',
+        width: 1,
+        style: LightweightCharts.LineStyle.Dashed,
+        labelBackgroundColor: '#0284c7'
+      }
+    },
+    rightPriceScale: {
+      borderColor: '#1e293b',
+      scaleMargins: {
+        top: 0.1,
+        bottom: 0.25
+      }
+    },
+    timeScale: {
+      borderColor: '#1e293b',
+      timeVisible: true,
+      secondsVisible: false
+    }
+  });
+
+  currentIndexLwChart = chart;
+
+  // Volume Series
+  const volSeries = chart.addHistogramSeries({
+    priceFormat: { type: 'volume' },
+    priceScaleId: '',
+    scaleMargins: { top: 0.8, bottom: 0 }
+  });
+  volSeries.setData(volData);
+
+  // Candlestick Series
+  const candleSeries = chart.addCandlestickSeries({
+    upColor: '#10b981',
+    downColor: '#f43f5e',
+    borderVisible: false,
+    wickUpColor: '#10b981',
+    wickDownColor: '#f43f5e'
+  });
+  candleSeries.setData(validCandles.map(c => ({
+    time: c.time,
+    open: c.open,
+    high: c.high,
+    low: c.low,
+    close: c.close
+  })));
+
+  // SuperTrend Series
+  let stSeries = null;
+  if (stData.length > 0) {
+    stSeries = chart.addLineSeries({
+      color: '#10b981',
+      lineWidth: 2,
+      priceLineVisible: false,
+      title: 'SuperTrend'
+    });
+    stSeries.setData(stData);
+  }
+
+  // SMA 9 Series
+  let smaSeries = null;
+  if (smaData.length > 0) {
+    smaSeries = chart.addLineSeries({
+      color: '#f59e0b',
+      lineWidth: 1.5,
+      priceLineVisible: false,
+      title: 'SMA 9'
+    });
+    smaSeries.setData(smaData);
+  }
+
+  const lastCandle = validCandles[validCandles.length - 1];
+  const lastSt = stData.length > 0 ? stData[stData.length - 1].value : null;
+  const lastSma = smaData.length > 0 ? smaData[smaData.length - 1].value : null;
+  const lastVol = lastCandle.volume;
+
+  updateIndexChartLegend(lastCandle.open, lastCandle.high, lastCandle.low, lastCandle.close, lastVol, lastSt, lastSma);
+
+  chart.subscribeCrosshairMove(param => {
+    if (!param || !param.time || !param.seriesData) {
+      updateIndexChartLegend(lastCandle.open, lastCandle.high, lastCandle.low, lastCandle.close, lastVol, lastSt, lastSma);
+      return;
+    }
+    const cData = param.seriesData.get(candleSeries);
+    const vData = param.seriesData.get(volSeries);
+    const sData = stSeries ? param.seriesData.get(stSeries) : null;
+    const mData = smaSeries ? param.seriesData.get(smaSeries) : null;
+
+    if (cData) {
+      updateIndexChartLegend(
+        cData.open,
+        cData.high,
+        cData.low,
+        cData.close,
+        vData ? vData.value : lastVol,
+        sData ? sData.value : lastSt,
+        mData ? mData.value : lastSma
+      );
+    }
+  });
+
+  chart.timeScale().fitContent();
+
+  window.addEventListener('resize', () => {
+    if (currentIndexLwChart && container) {
+      currentIndexLwChart.resize(container.clientWidth, container.clientHeight);
+    }
+  });
+}
+
+function updateIndexChartLegend(o, h, l, c, vol, st, sma) {
+  const elO = document.getElementById('index-leg-open');
+  const elH = document.getElementById('index-leg-high');
+  const elL = document.getElementById('index-leg-low');
+  const elC = document.getElementById('index-leg-close');
+  const elVol = document.getElementById('index-leg-vol');
+  const elSt = document.getElementById('index-leg-st');
+  const elSma = document.getElementById('index-leg-sma');
+
+  if (elO && o !== undefined) elO.innerText = `₹${Number(o).toFixed(2)}`;
+  if (elH && h !== undefined) elH.innerText = `₹${Number(h).toFixed(2)}`;
+  if (elL && l !== undefined) elL.innerText = `₹${Number(l).toFixed(2)}`;
+  if (elC && c !== undefined) {
+    elC.innerText = `₹${Number(c).toFixed(2)}`;
+    elC.className = (c >= o) ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold';
+  }
+  if (elVol && vol !== undefined) {
+    elVol.innerText = vol >= 1e6 ? `${(vol / 1e6).toFixed(2)}M` : (vol >= 1e3 ? `${(vol / 1e3).toFixed(1)}K` : vol);
+  }
+  if (elSt) {
+    elSt.innerText = (st !== null && st !== undefined) ? `₹${Number(st).toFixed(2)}` : '--';
+  }
+  if (elSma) {
+    elSma.innerText = (sma !== null && sma !== undefined) ? `₹${Number(sma).toFixed(2)}` : '--';
+  }
 }
 
 function setIndexChartMode(mode) {
