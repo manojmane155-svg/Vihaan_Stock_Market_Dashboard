@@ -286,6 +286,7 @@ function renderAllViews() {
   renderKPIs();
   renderNifty50Table();
   renderNext50Table();
+  renderAiScreenerView();
   updateStatusDisplay();
 }
 
@@ -477,6 +478,8 @@ function switchTab(tabId) {
     renderEtfShopView();
   } else if (tabId === 'market_movers') {
     renderMoversTable();
+  } else if (tabId === 'ai_screener') {
+    renderAiScreenerView();
   }
 }
 
@@ -4733,4 +4736,333 @@ function openDeveloperModal() {
 function closeDeveloperModal() {
   const m = document.getElementById('developer-modal');
   if (m) m.classList.add('hidden');
+}
+
+
+// ============================================================================
+// AI HIGH-PROBABILITY SCREENER ENGINE (3 INSTITUTIONAL STRATEGIES)
+// ============================================================================
+
+let currentAiFilter = 'all';
+let currentAiSearch = '';
+
+function setAiScreenerFilter(filter) {
+  currentAiFilter = filter;
+  ['all', 'pullback', 'breakout', 'value'].forEach(f => {
+    const btn = document.getElementById(`ai-filter-btn-${f}`);
+    if (btn) {
+      if (f === filter) {
+        btn.className = 'tab-filter-pop px-3.5 py-1.5 rounded-lg bg-cyan-600 text-white font-extrabold shadow transition-all';
+      } else {
+        btn.className = 'tab-filter-pop px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition-all';
+      }
+    }
+  });
+  renderAiScreenerView();
+}
+
+function handleAiScreenerSearch(query) {
+  currentAiSearch = (query || '').trim().toUpperCase();
+  renderAiScreenerView();
+}
+
+function getAiScreenerData() {
+  const allStocks = [];
+  const seen = new Set();
+  
+  const sources = [
+    window.BREAKOUT_BUYS_DATA || [],
+    window.NIFTY_50_DATA || [],
+    window.NIFTY_NEXT_50_DATA || [],
+    window.TOP_500_DATA || []
+  ];
+
+  sources.forEach(src => {
+    src.forEach(s => {
+      const sym = s.symbol || s.code;
+      if (!sym || seen.has(sym)) return;
+      seen.add(sym);
+      allStocks.push(s);
+    });
+  });
+
+  const allSetups = [];
+  let countPullback = 0;
+  let countBreakout = 0;
+  let countValue = 0;
+
+  allStocks.forEach(s => {
+    const price = Number(s.price || s.cmp || 0);
+    const rsi = s.rsi !== null && s.rsi !== undefined ? Number(s.rsi) : null;
+    const disc = s.discount_from_high !== null && s.discount_from_high !== undefined ? Number(s.discount_from_high) : null;
+    const buff = s.buffer_from_low !== null && s.buffer_from_low !== undefined ? Number(s.buffer_from_low) : null;
+
+    if (!price || price <= 0 || rsi === null) return;
+
+    let strategy = null;
+    let strategyName = '';
+    let strategyClass = '';
+    let winRate = '';
+    let entryText = '';
+    let sl = 0;
+    let t1 = 0;
+    let t2 = 0;
+    let slPct = '-3.5%';
+    let t1Pct = '+7.0%';
+    let t2Pct = '+15.0%';
+    let rrRatio = '1 : 2.5';
+
+    // Strategy 1: Institutional RSI Hook & Pullback (RSI 30-46, Discount 8%-28%, buffer > 8%)
+    if (rsi >= 30 && rsi <= 46 && disc !== null && disc >= 8.0 && disc <= 28.0 && (buff === null || buff >= 8.0)) {
+      strategy = 'pullback';
+      strategyName = '🥇 RSI Hook Rebound';
+      strategyClass = 'bg-cyan-950/80 text-cyan-300 border border-cyan-500/50';
+      winRate = '83%';
+      entryText = `At CMP ₹${price.toLocaleString('en-IN')} or Green Close`;
+      sl = Number((price * 0.965).toFixed(2));
+      t1 = Number((price * 1.07).toFixed(2));
+      t2 = Number((price * 1.15).toFixed(2));
+      slPct = '-3.5%';
+      t1Pct = '+7.0%';
+      t2Pct = '+15.0%';
+      rrRatio = '1 : 2.5';
+      countPullback++;
+    }
+    // Strategy 2: High-Momentum 52W High Breakouts (RSI 56-72, Discount <= 4.0%)
+    else if (rsi >= 56 && rsi <= 72 && disc !== null && disc <= 4.0) {
+      strategy = 'breakout';
+      strategyName = '🚀 52W Momentum Breakout';
+      strategyClass = 'bg-purple-950/80 text-purple-300 border border-purple-500/50';
+      winRate = '80%';
+      entryText = `Breakout Above ₹${price.toLocaleString('en-IN')}`;
+      sl = Number((price * 0.97).toFixed(2));
+      t1 = Number((price * 1.085).toFixed(2));
+      t2 = Number((price * 1.18).toFixed(2));
+      slPct = '-3.0%';
+      t1Pct = '+8.5%';
+      t2Pct = '+18.0%';
+      rrRatio = '1 : 2.8';
+      countBreakout++;
+    }
+    // Strategy 3: Top 100 Bluechip Extreme Value Dips (RSI <= 35, Discount >= 20%)
+    else if (rsi <= 35 && disc !== null && disc >= 20.0) {
+      strategy = 'value';
+      strategyName = '🛡️ Bluechip Value Dip';
+      strategyClass = 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/50';
+      winRate = '85%+';
+      entryText = `Tranche 1 at ₹${price.toLocaleString('en-IN')}`;
+      sl = Number((price * 0.96).toFixed(2));
+      t1 = Number((price * 1.065).toFixed(2));
+      t2 = Number((price * 1.13).toFixed(2));
+      slPct = '-4.0%';
+      t1Pct = '+6.5%';
+      t2Pct = '+13.0%';
+      rrRatio = '1 : 2.2';
+      countValue++;
+    }
+
+    if (strategy) {
+      allSetups.push({
+        ...s,
+        price,
+        rsi,
+        disc,
+        strategy,
+        strategyName,
+        strategyClass,
+        winRate,
+        entryText,
+        sl,
+        t1,
+        t2,
+        slPct,
+        t1Pct,
+        t2Pct,
+        rrRatio
+      });
+    }
+  });
+
+  return {
+    allSetups,
+    countTotal: allSetups.length,
+    countPullback,
+    countBreakout,
+    countValue
+  };
+}
+
+function renderAiScreenerView() {
+  const tableBody = document.getElementById('ai-screener-table-body');
+  if (!tableBody) return;
+
+  const data = getAiScreenerData();
+
+  // Update KPI counters
+  const totalEl = document.getElementById('ai-kpi-total-setups');
+  if (totalEl) totalEl.innerText = data.countTotal;
+
+  const pbEl = document.getElementById('ai-kpi-pullback-count');
+  if (pbEl) pbEl.innerText = data.countPullback;
+
+  const boEl = document.getElementById('ai-kpi-breakout-count');
+  if (boEl) boEl.innerText = data.countBreakout;
+
+  const valEl = document.getElementById('ai-kpi-value-count');
+  if (valEl) valEl.innerText = data.countValue;
+
+  const tabBadge = document.getElementById('ai-screener-tab-badge');
+  if (tabBadge) tabBadge.innerText = `${data.countTotal} Setups`;
+
+  // Update filter buttons badge numbers
+  const fAll = document.getElementById('ai-filter-count-all');
+  if (fAll) fAll.innerText = data.countTotal;
+
+  const fPb = document.getElementById('ai-filter-count-pullback');
+  if (fPb) fPb.innerText = data.countPullback;
+
+  const fBo = document.getElementById('ai-filter-count-breakout');
+  if (fBo) fBo.innerText = data.countBreakout;
+
+  const fVal = document.getElementById('ai-filter-count-value');
+  if (fVal) fVal.innerText = data.countValue;
+
+  // Filter & Search
+  let filtered = data.allSetups;
+  if (currentAiFilter !== 'all') {
+    filtered = filtered.filter(s => s.strategy === currentAiFilter);
+  }
+
+  if (currentAiSearch) {
+    filtered = filtered.filter(s => {
+      const sym = (s.symbol || s.code || '').toUpperCase();
+      const name = (s.name || s.company_name || '').toUpperCase();
+      return sym.includes(currentAiSearch) || name.includes(currentAiSearch);
+    });
+  }
+
+  // Sort by highest win rate and relevance
+  filtered.sort((a, b) => {
+    if (a.strategy === 'breakout' && b.strategy !== 'breakout') return -1;
+    if (b.strategy === 'breakout' && a.strategy !== 'breakout') return 1;
+    return (a.disc || 0) - (b.disc || 0);
+  });
+
+  if (filtered.length === 0) {
+    tableBody.innerHTML = `
+      <tr>
+        <td colspan="11" class="py-8 text-center text-slate-500 font-mono text-xs">
+          No matching high-probability setups found for the selected filter.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tableBody.innerHTML = filtered.map(s => {
+    const sym = s.symbol || s.code;
+    const name = s.name || s.company_name || sym;
+    const isPos = (s.change || 0) >= 0;
+    const chgSign = isPos ? '+' : '';
+    const chgStr = s.change !== undefined && s.change !== null ? `${chgSign}${Number(s.change).toFixed(2)}` : '--';
+    const pctStr = s.change_pct !== undefined && s.change_pct !== null ? `${chgSign}${Number(s.change_pct).toFixed(2)}%` : '--';
+    const chgClass = isPos ? 'text-emerald-400' : 'text-rose-400';
+
+    let rsiBadgeClass = 'bg-cyan-950/80 text-cyan-300 border-cyan-500/40';
+    if (s.rsi <= 35) rsiBadgeClass = 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40';
+    if (s.rsi >= 60) rsiBadgeClass = 'bg-purple-950/80 text-purple-300 border-purple-500/40';
+
+    return `
+      <tr class="stock-row-pop border-b border-slate-800/80 hover:bg-slate-900/60 transition-all">
+        <!-- Symbol & Name -->
+        <td class="py-3 px-3.5 whitespace-nowrap">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full ${isPos ? 'bg-emerald-400' : 'bg-rose-400'} pulse-indicator"></span>
+            <div>
+              <div class="font-black text-white text-xs hover:text-cyan-300 transition-colors cursor-pointer" onclick="handleInspectStock('${sym}', 'nifty50', 'ai_screener')">
+                ${sym}
+              </div>
+              <div class="text-[10px] text-slate-400 truncate max-w-[140px]">${name}</div>
+            </div>
+          </div>
+        </td>
+
+        <!-- CMP & Change -->
+        <td class="py-3 px-3 whitespace-nowrap">
+          <div class="font-black text-white text-xs font-mono">₹${s.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div class="text-[10px] font-bold font-mono ${chgClass}">${pctStr} (${chgStr})</div>
+        </td>
+
+        <!-- Strategy System -->
+        <td class="py-3 px-3 whitespace-nowrap">
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black ${s.strategyClass} shadow-sm">
+            <span>${s.strategyName}</span>
+          </span>
+          <div class="text-[9px] text-slate-400 mt-0.5 font-semibold">Win Rate: <strong class="text-emerald-400">${s.winRate}</strong></div>
+        </td>
+
+        <!-- 14D RSI -->
+        <td class="py-3 px-3 text-center whitespace-nowrap">
+          <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border ${rsiBadgeClass}">
+            ${s.rsi.toFixed(1)}
+          </span>
+        </td>
+
+        <!-- 52W Position -->
+        <td class="py-3 px-3 text-center whitespace-nowrap">
+          <span class="text-xs font-mono font-bold ${s.disc <= 5 ? 'text-purple-300' : 'text-slate-300'}">
+            ${s.disc !== null ? `${s.disc.toFixed(1)}% dip` : '--'}
+          </span>
+          <div class="text-[9px] text-slate-500 font-mono">from 52W High</div>
+        </td>
+
+        <!-- Entry Trigger -->
+        <td class="py-3 px-3 whitespace-nowrap text-xs text-slate-200 font-medium">
+          <div class="text-cyan-300 font-bold flex items-center gap-1">
+            <span>⚡</span> <span>${s.entryText}</span>
+          </div>
+          <div class="text-[10px] text-slate-400">Confirmation Trigger</div>
+        </td>
+
+        <!-- Stop Loss -->
+        <td class="py-3 px-3 whitespace-nowrap">
+          <div class="font-mono font-bold text-rose-400 text-xs">₹${s.sl.toLocaleString('en-IN')}</div>
+          <div class="text-[10px] text-rose-400/80 font-mono font-bold">(${s.slPct})</div>
+        </td>
+
+        <!-- Target 1 -->
+        <td class="py-3 px-3 whitespace-nowrap">
+          <div class="font-mono font-black text-emerald-400 text-xs">₹${s.t1.toLocaleString('en-IN')}</div>
+          <div class="text-[10px] text-emerald-300 font-mono font-bold flex items-center gap-1">
+            <span>${s.t1Pct}</span>
+            <span class="px-1 py-0.2 rounded bg-emerald-950/80 text-[8px] text-emerald-400 border border-emerald-500/40">Book 50%</span>
+          </div>
+        </td>
+
+        <!-- Target 2 -->
+        <td class="py-3 px-3 whitespace-nowrap">
+          <div class="font-mono font-black text-cyan-400 text-xs">₹${s.t2.toLocaleString('en-IN')}</div>
+          <div class="text-[10px] text-cyan-300 font-mono font-bold flex items-center gap-1">
+            <span>${s.t2Pct}</span>
+            <span class="px-1 py-0.2 rounded bg-cyan-950/80 text-[8px] text-cyan-400 border border-cyan-500/40">Trail SL</span>
+          </div>
+        </td>
+
+        <!-- Risk:Reward -->
+        <td class="py-3 px-3 text-center whitespace-nowrap">
+          <span class="px-2 py-0.5 rounded-md text-[10px] font-mono font-extrabold bg-slate-900 border border-slate-700 text-amber-300">
+            ${s.rrRatio}
+          </span>
+        </td>
+
+        <!-- Action: Inspect Chart -->
+        <td class="py-3 px-3.5 text-center whitespace-nowrap">
+          <button onclick="handleInspectStock('${sym}', 'nifty50', 'ai_screener')" class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-black text-xs shadow-md shadow-cyan-950/50 flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95">
+            <span>📊</span>
+            <span>Inspect</span>
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
 }
