@@ -266,8 +266,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderAllViews();
   initCalculationDropdowns();
   renderCalculationView('nifty50');
-  renderMarketDatesView();
-  initCompoundingCalculator();
+    initCompoundingCalculator();
   initDragAndDrop();
   initSearchAndFilters();
   initCountdownTimer();
@@ -469,8 +468,7 @@ function switchTab(tabId) {
 
   if (tabId === 'nifty50_calc' || tabId === 'next50_calc') {
     renderCalculationView(tabId === 'nifty50_calc' ? 'nifty50' : 'next50');
-  } else if (tabId === 'market_dates') {
-    renderMarketDatesChart();
+
   } else if (tabId === 'breakout_buys') {
     renderBreakoutBuysTable();
   } else if (tabId === 'top500') {
