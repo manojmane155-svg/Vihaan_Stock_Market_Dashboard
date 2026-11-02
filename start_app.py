@@ -427,9 +427,19 @@ def generate_fallback_chart_data(clean_sym):
         'last_updated': datetime.now().strftime('%I:%M:%S %p')
     }
 
+class ThreadingServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
 class APIHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
+
+    def handle_one_request(self):
+        try:
+            super().handle_one_request()
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            pass
 
     def end_headers(self):
         # Prevent browser caching of any files so live data is always immediate
@@ -688,13 +698,12 @@ def background_auto_refresh_worker():
 
 def run():
     os.chdir(DIRECTORY)
-    socketserver.TCPServer.allow_reuse_address = True
 
     # Start background auto-refresh thread (5 min interval)
     t = threading.Thread(target=background_auto_refresh_worker, daemon=True)
     t.start()
 
-    with socketserver.TCPServer(("", PORT), APIHandler) as httpd:
+    with ThreadingServer(("", PORT), APIHandler) as httpd:
         url = f"http://localhost:{PORT}"
         print("=" * 65, flush=True)
         print(">> Vihaan Stock Market Dashboard Live Web Server", flush=True)

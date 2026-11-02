@@ -259,22 +259,32 @@ function initDigitalWatch() {
   setInterval(tick, 1000);
 }
 
-// Initialize Application on DOM Ready
-document.addEventListener('DOMContentLoaded', async () => {
-  initDigitalWatch();
-  initTabs();
-  renderAllViews();
-  initCalculationDropdowns();
-  renderCalculationView('nifty50');
-    initCompoundingCalculator();
-  initDragAndDrop();
-  initSearchAndFilters();
-  initCountdownTimer();
+// Guaranteed Application Initialization (runs on DOMContentLoaded or immediately if already loaded)
+async function initApp() {
+  try { initDigitalWatch(); } catch (e) { console.error('initDigitalWatch error:', e); }
+  try { initTabs(); } catch (e) { console.error('initTabs error:', e); }
+  try { renderAllViews(); } catch (e) { console.error('renderAllViews error:', e); }
+  try { initCalculationDropdowns(); } catch (e) { console.error('initCalculationDropdowns error:', e); }
+  try { renderCalculationView('nifty50'); } catch (e) { console.error('renderCalculationView error:', e); }
+  try { initCompoundingCalculator(); } catch (e) { console.error('initCompoundingCalculator error:', e); }
+  try { initDragAndDrop(); } catch (e) { console.error('initDragAndDrop error:', e); }
+  try { initSearchAndFilters(); } catch (e) { console.error('initSearchAndFilters error:', e); }
+  try { initCountdownTimer(); } catch (e) { console.error('initCountdownTimer error:', e); }
 
   // Immediately pull fresh live stream data from backend API
-  await fetchLiveStocksData(false);
-  streamLiveQuotesForActiveView();
-});
+  try {
+    await fetchLiveStocksData(false);
+    streamLiveQuotesForActiveView();
+  } catch (e) {
+    console.error('fetchLiveStocksData error:', e);
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
 
 // Render all primary tables, indices, and KPIs
 function renderAllViews() {
@@ -559,32 +569,6 @@ async function streamLiveQuotesForActiveView() {
     } else if (state.currentTab === 'ai_screener') {
       ['TATAMOTORS', 'HDFCBANK', 'RELIANCE', 'SBICARD', 'TCS', 'INFY', 'ICICIBANK', 'AXISBANK', 'KOTAKBANK', 'LT', 'BAJFINANCE', 'BHARTIARTL', 'MARUTI', 'COALINDIA', 'ULTRACEMCO', 'NESTLEIND'].forEach(s => symbolsSet.add(s));
     }
-
-    // Always include watchlist symbols
-    if (typeof getWatchlistSymbols === 'function') {
-      getWatchlistSymbols().forEach(s => symbolsSet.add(s));
-    }
-
-    const symArray = Array.from(symbolsSet);
-    if (symArray.length === 0) return;
-
-    const chunkSize = 20;
-    for (let i = 0; i < symArray.length; i += chunkSize) {
-      const chunk = symArray.slice(i, i + chunkSize);
-      const url = `${API_BASE}/api/live_quotes?symbols=${encodeURIComponent(chunk.join(','))}&_t=${Date.now()}`;
-      const res = await fetch(url, { cache: 'no-store' });
-      if (!res.ok) continue;
-      const json = await res.json();
-      if (!json || !json.quotes) continue;
-
-      applyLiveQuotesUpdate(json.quotes);
-    }
-  } catch (err) {
-    console.warn('[StreamLiveQuotes] Warning:', err.message);
-  } finally {
-    isStreamingQuotes = false;
-  }
-}
 
     // Always include watchlist symbols
     if (typeof getWatchlistSymbols === 'function') {
