@@ -889,9 +889,10 @@
         </div>
         <div class="flex flex-wrap items-center gap-1.5 text-xs">
           <button data-filter="all" class="filter-btn px-2.5 py-1 rounded bg-cyan-500 text-slate-950 font-bold transition-all">All</button>
-          <button data-filter="buy" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Buy (RSI &le; 35)</button>
+          <button data-filter="buy" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Buy (Immediate &le; 35 / Rally)</button>
+          <button data-filter="profitable" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-emerald-400 hover:bg-slate-700 transition-all">🚀 Profitable Gainers</button>
           <button data-filter="oversold" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Extreme Oversold (&le; 30)</button>
-          <button data-filter="wait" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">WAIT (&gt; 35)</button>
+          <button data-filter="wait" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">WAIT FOR DIP</button>
           <button data-filter="overbought" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Overbought (&ge; 70)</button>
         </div>
         <div id="nifty50-count-label" class="text-xs text-slate-400 font-mono">50 Stocks</div>
@@ -973,8 +974,13 @@
     <!-- TAB 3: NIFTY NEXT 50 SCREENER + VALUATION -->
     <div id="tab-content-next50" class="tab-content hidden space-y-4">
       <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
-        <div class="text-xs text-slate-400">
-          Tracks 50 high-growth Indian blue chips with P/E valuation, 52-week high discount, and RSI signals.
+        <div class="flex flex-wrap items-center gap-1.5 text-xs">
+          <button data-filter="all" class="filter-btn px-2.5 py-1 rounded bg-cyan-500 text-slate-950 font-bold transition-all">All</button>
+          <button data-filter="buy" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Buy (Immediate &le; 35 / Rally)</button>
+          <button data-filter="profitable" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-emerald-400 hover:bg-slate-700 transition-all">🚀 Profitable Gainers</button>
+          <button data-filter="oversold" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Extreme Oversold (&le; 30)</button>
+          <button data-filter="wait" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">WAIT FOR DIP</button>
+          <button data-filter="overbought" class="filter-btn px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">Overbought (&ge; 70)</button>
         </div>
         <div id="next50-count-label" class="text-xs text-slate-400 font-mono">50 Stocks</div>
       </div>

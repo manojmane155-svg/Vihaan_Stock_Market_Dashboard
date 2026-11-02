@@ -273,7 +273,7 @@ def fetch_stock_data(symbol, is_next50=False):
 
 INDICES_CONFIG = [
     {'name': 'NIFTY 50', 'ticker': '^NSEI', 'exchange': 'NSE', 'expiry_day': 'Thursday'},
-    {'name': 'GIFT NIFTY', 'ticker': '^NSEI', 'exchange': 'NSE IX', 'expiry_day': 'Thursday', 'is_gift': True},
+    {'name': 'GIFT NIFTY', 'ticker': '^GIFTNIFTY', 'exchange': 'NSE IX', 'expiry_day': 'Thursday', 'is_gift': True},
     {'name': 'SENSEX', 'ticker': '^BSESN', 'exchange': 'BSE', 'expiry_day': 'Friday'},
     {'name': 'BANK NIFTY', 'ticker': '^NSEBANK', 'exchange': 'NSE', 'expiry_day': 'Wednesday'},
     {'name': 'NIFTY IT', 'ticker': '^CNXIT', 'exchange': 'NSE', 'expiry_day': 'Thursday'},
@@ -286,7 +286,8 @@ def fetch_indices_data():
     indices = []
     for cfg in INDICES_CONFIG:
         try:
-            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{cfg['ticker']}?interval=5m&range=1d"
+            ticker_to_fetch = '^NSEI' if cfg.get('is_gift') else cfg['ticker']
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker_to_fetch}?interval=5m&range=1d"
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=8) as resp:
                 data = json.loads(resp.read().decode())

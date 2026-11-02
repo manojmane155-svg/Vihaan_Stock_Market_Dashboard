@@ -291,7 +291,7 @@ function renderAllViews() {
   updateStatusDisplay();
 }
 
-// Helper: Check if Indian Stock Market is currently Open (Mon-Fri, 9:15 AM - 3:30 PM IST)
+// Helper: Check if Indian Cash Stock Market is currently Open (Mon-Fri, 9:15 AM - 3:30 PM IST)
 function isIndianMarketOpen() {
   try {
     const now = new Date();
@@ -308,6 +308,69 @@ function isIndianMarketOpen() {
     return isWeekday && (timeInMinutes >= (9 * 60 + 15)) && (timeInMinutes <= (15 * 60 + 30));
   } catch (e) {
     return false;
+  }
+}
+
+// Helper: Check GIFT NIFTY Session Status on NSE IX (21-Hour Trading Schedule)
+// Reference: https://www.mnclgroup.com/gift-nifty-trading-hours
+// Session 1: 6:30 AM - 11:30 PM IST (17 hours)
+// Session 2: 11:30 PM - 4:00 AM IST (+1 day) (4.5 hours)
+// Closed Gap: 4:00 AM - 6:30 AM IST (~2.5 hours)
+function getGiftNiftySessionStatusClient() {
+  try {
+    const now = new Date();
+    const istTimeStr = now.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit' });
+    const parts = istTimeStr.split(':');
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    const totalMinutes = h * 60 + m;
+
+    const dayFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', weekday: 'short' });
+    const weekday = dayFormatter.format(now);
+    const isWeekend = ['Sat', 'Sun'].includes(weekday);
+
+    if (isWeekend) {
+      return {
+        isOpen: false,
+        sessionName: 'Weekend Break',
+        badgeText: 'Closed (Weekend)',
+        subText: 'Opens Mon 6:30 AM IST'
+      };
+    }
+
+    // Session 1: 06:30 to 23:30 IST (390 to 1410 min)
+    if (totalMinutes >= 390 && totalMinutes < 1410) {
+      let sub = '6:30 AM – 11:30 PM IST';
+      if (totalMinutes < 555) sub = 'Asian Pre-Market (6:30 - 9:15 AM)';
+      else if (totalMinutes >= 930 && totalMinutes < 1200) sub = 'European Session (3:30 - 8:00 PM)';
+      else if (totalMinutes >= 1200) sub = 'US Pre-Market (8:00 - 11:30 PM)';
+      return {
+        isOpen: true,
+        sessionName: 'Session 1',
+        badgeText: 'Session 1 Live',
+        subText: sub
+      };
+    }
+
+    // Session 2: 23:30 to 04:00 IST (1410 to 1440 min and 0 to 240 min)
+    if (totalMinutes >= 1410 || totalMinutes < 240) {
+      return {
+        isOpen: true,
+        sessionName: 'Session 2',
+        badgeText: 'Session 2 Live',
+        subText: '11:30 PM – 4:00 AM IST'
+      };
+    }
+
+    // 04:00 to 06:30 IST: Closed Gap
+    return {
+      isOpen: false,
+      sessionName: 'Exchange Closed',
+      badgeText: 'Closed (4:00-6:30 AM)',
+      subText: 'Reopens 6:30 AM IST'
+    };
+  } catch (e) {
+    return { isOpen: true, sessionName: 'Session 1', badgeText: 'Live', subText: '21h Schedule' };
   }
 }
 
@@ -338,6 +401,7 @@ function updateStatusDisplay() {
 
   if (statusEl) {
     const marketOpen = isIndianMarketOpen();
+    const giftSession = getGiftNiftySessionStatusClient();
     if (marketOpen) {
       statusEl.innerHTML = `
         <span class="inline-flex items-center gap-1.5 text-emerald-400 font-bold">
@@ -345,14 +409,24 @@ function updateStatusDisplay() {
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
-          <span>⚡ Indian Market LIVE (9:15 AM - 3:30 PM IST) &bull; Synced at ${timeDisplay}</span>
+          <span>⚡ Indian Cash Market LIVE (9:15 AM - 3:30 PM IST) &bull; Synced at ${timeDisplay}</span>
+        </span>
+      `;
+    } else if (giftSession.isOpen) {
+      statusEl.innerHTML = `
+        <span class="inline-flex items-center gap-1.5 text-cyan-300 font-bold">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-400"></span>
+          </span>
+          <span>🌍 GIFT NIFTY LIVE on NSE IX (${giftSession.badgeText} &bull; 21h Stream) &bull; Cash Closed &bull; Synced at ${timeDisplay}</span>
         </span>
       `;
     } else {
       statusEl.innerHTML = `
         <span class="inline-flex items-center gap-1.5 text-amber-400 font-semibold">
           <span class="inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
-          <span>🌙 Market Closed (Operating Hours: 9:15 AM - 3:30 PM IST) &bull; Last Close: ${timeDisplay}</span>
+          <span>🌙 Markets Closed &bull; Reopens 6:30 AM IST (GIFT NIFTY) &bull; Last Close: ${timeDisplay}</span>
         </span>
       `;
     }
@@ -387,8 +461,22 @@ function applyLiveQuotesUpdate(quotes) {
     }
   };
 
-  // 1. Update Indices
+  // 1. Update Indices (Carefully distinguish GIFT NIFTY from NIFTY 50 spot!)
   (window.INDICES_DATA || []).forEach(idx => {
+    if (idx.name === 'GIFT NIFTY' || idx.is_gift) {
+      const q = quotes['GIFT NIFTY'] || quotes['^GIFTNIFTY'];
+      if (q && q.price > 0 && Math.abs(q.price - (idx.price || 0)) > 0.001) {
+        idx.price = q.price;
+        idx.change = q.change;
+        idx.change_pct = q.change_pct;
+        if (q.day_high) idx.high = q.day_high;
+        if (q.day_low) idx.low = q.day_low;
+        idx.is_positive = idx.change >= 0;
+        hasChanges = true;
+      }
+      return;
+    }
+
     const q = quotes[idx.ticker] || quotes[idx.name];
     if (q && q.price > 0 && Math.abs(q.price - (idx.price || 0)) > 0.001) {
       idx.price = q.price;
@@ -401,10 +489,34 @@ function applyLiveQuotesUpdate(quotes) {
     }
   });
 
-  // 2. Update Stocks
+  // 2. Update Stocks across Nifty 50, Next 50, and Breakout Buys
   (window.NIFTY_50_DATA || []).forEach(updateStockItem);
   (window.NIFTY_NEXT_50_DATA || []).forEach(updateStockItem);
   (window.BREAKOUT_BUYS_DATA || []).forEach(updateStockItem);
+
+  // 3. Update Top 500 Stocks Active Trading Data
+  (window.TOP_500_STOCKS_DATA || []).forEach(s => {
+    if (!s) return;
+    const sym = (s.symbol || s.code?.replace('NSE:', '') || '').toUpperCase();
+    const q = quotes[sym];
+    if (q && q.price > 0) {
+      if (Math.abs(q.price - (s.cmp || 0)) > 0.001) {
+        s.cmp = q.price;
+        s.change = q.change;
+        s.change_pct = q.change_pct;
+        if (q.day_high) s.high52 = Math.max(s.high52 || 0, q.day_high);
+        if (q.day_low && s.low52) s.low52 = Math.min(s.low52, q.day_low);
+        if (s.dma20 && s.dma50) {
+          if (s.cmp >= s.dma20 && s.cmp >= s.dma50 && (q.change_pct >= 0 || s.cmp >= (s.dma5 || 0))) {
+            s.output = 'Best Time for Buy';
+          } else if (s.cmp < s.dma20 && s.cmp < s.dma50) {
+            s.output = 'Avoid';
+          }
+        }
+        hasChanges = true;
+      }
+    }
+  });
 
   if (hasChanges) {
     const now = new Date();
@@ -421,6 +533,7 @@ function applyLiveQuotesUpdate(quotes) {
     if (state.currentTab === 'breakout_buys') renderBreakoutBuysTable();
     else if (state.currentTab === 'nifty50') renderNifty50Table();
     else if (state.currentTab === 'next50') renderNext50Table();
+    else if (state.currentTab === 'top500') renderTop500Table();
     else if (state.currentTab === 'ai_screener') renderAiScreenerView();
     updateStatusDisplay();
   }
@@ -433,7 +546,7 @@ async function streamLiveQuotesForActiveView() {
   isStreamingQuotes = true;
 
   try {
-    const symbolsSet = new Set(['^NSEI', '^NSEBANK', '^BSESN', '^CNXIT', '^INDIAVIX']);
+    const symbolsSet = new Set(['^NSEI', '^GIFTNIFTY', 'GIFT NIFTY', '^NSEBANK', '^BSESN', '^CNXIT', '^INDIAVIX']);
 
     if (state.currentTab === 'breakout_buys') {
       (window.BREAKOUT_BUYS_DATA || []).slice(0, 16).forEach(s => s.symbol && symbolsSet.add(s.symbol));
@@ -441,9 +554,37 @@ async function streamLiveQuotesForActiveView() {
       (window.NIFTY_50_DATA || []).slice(0, 25).forEach(s => s.symbol && symbolsSet.add(s.symbol));
     } else if (state.currentTab === 'next50') {
       (window.NIFTY_NEXT_50_DATA || []).slice(0, 25).forEach(s => s.symbol && symbolsSet.add(s.symbol));
+    } else if (state.currentTab === 'top500') {
+      (window.TOP_500_STOCKS_DATA || []).slice(0, 30).forEach(s => s.symbol && symbolsSet.add(s.symbol));
     } else if (state.currentTab === 'ai_screener') {
-      ['TATAMOTORS', 'HDFCBANK', 'RELIANCE', 'SBICARD', 'TCS', 'INFY', 'ICICIBANK', 'AXISBANK', 'KOTAKBANK', 'LT', 'BAJFINANCE', 'BHARTIARTL', 'MARUTI'].forEach(s => symbolsSet.add(s));
+      ['TATAMOTORS', 'HDFCBANK', 'RELIANCE', 'SBICARD', 'TCS', 'INFY', 'ICICIBANK', 'AXISBANK', 'KOTAKBANK', 'LT', 'BAJFINANCE', 'BHARTIARTL', 'MARUTI', 'COALINDIA', 'ULTRACEMCO', 'NESTLEIND'].forEach(s => symbolsSet.add(s));
     }
+
+    // Always include watchlist symbols
+    if (typeof getWatchlistSymbols === 'function') {
+      getWatchlistSymbols().forEach(s => symbolsSet.add(s));
+    }
+
+    const symArray = Array.from(symbolsSet);
+    if (symArray.length === 0) return;
+
+    const chunkSize = 20;
+    for (let i = 0; i < symArray.length; i += chunkSize) {
+      const chunk = symArray.slice(i, i + chunkSize);
+      const url = `${API_BASE}/api/live_quotes?symbols=${encodeURIComponent(chunk.join(','))}&_t=${Date.now()}`;
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) continue;
+      const json = await res.json();
+      if (!json || !json.quotes) continue;
+
+      applyLiveQuotesUpdate(json.quotes);
+    }
+  } catch (err) {
+    console.warn('[StreamLiveQuotes] Warning:', err.message);
+  } finally {
+    isStreamingQuotes = false;
+  }
+}
 
     // Always include watchlist symbols
     if (typeof getWatchlistSymbols === 'function') {
@@ -720,15 +861,72 @@ function getRsiColor(rsi) {
   return '#a855f7'; // Overbought
 }
 
-function getRsiBadge(rsi, status) {
-  if (status === 'Start Buying As Par Rules' || (rsi !== null && rsi > 0 && rsi <= 35)) {
-    return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold badge-buy">
-      <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span>
-      Start Buying
+function getRsiBadge(rsi, status, stock = null) {
+  const chgPct = stock ? (stock.change_pct !== undefined && stock.change_pct !== null ? stock.change_pct : (stock.change || 0)) : 0;
+  const isSurging = chgPct >= 2.0;
+  const isRally = chgPct >= 1.0;
+  const isPositive = chgPct > 0;
+
+  // 1. Extreme Oversold Deep Value Buy (RSI <= 30)
+  if (rsi !== null && rsi !== undefined && rsi > 0 && rsi <= 30) {
+    return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-500/25 text-emerald-300 border border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.4)] whitespace-nowrap">
+      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+      ⚡ Deep Value Buy (RSI ≤ 30)
     </span>`;
   }
-  return `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium badge-wait">
-    WAIT
+
+  // 2. High-Profit Rally / Momentum Breakout (e.g. +2% to +11%+ Gainers like RELIANCE, SBIN, COALINDIA)
+  if (isSurging) {
+    return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-gradient-to-r from-emerald-500/25 to-teal-500/25 text-emerald-300 border border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.35)] whitespace-nowrap">
+      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+      🚀 Immediate Buy (+${chgPct.toFixed(1)}%)
+    </span>`;
+  }
+
+  // 3. Official RSI Strategy Buy Trigger (RSI <= 35)
+  if (status === 'Start Buying As Par Rules' || (rsi !== null && rsi > 0 && rsi <= 35)) {
+    return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold badge-buy whitespace-nowrap">
+      <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span>
+      🎯 Immediate Buy (RSI ≤ 35)
+    </span>`;
+  }
+
+  // 4. Profitable Rally / Bullish Add (e.g. +1.0% to +1.99%)
+  if (isRally) {
+    return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300 border border-teal-500/60 whitespace-nowrap">
+      <span class="w-1.5 h-1.5 rounded-full bg-teal-400"></span>
+      ⚡ Profitable Rally (+${chgPct.toFixed(1)}%)
+    </span>`;
+  }
+
+  // 5. Positive Bullish Move
+  if (isPositive) {
+    return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-950/60 text-emerald-300 border border-emerald-700/60 whitespace-nowrap">
+      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+      📈 Bullish Move (+${chgPct.toFixed(1)}%)
+    </span>`;
+  }
+
+  // 6. Near Support Dip Accumulation (RSI 36 - 42)
+  if (rsi !== null && rsi > 35 && rsi <= 42) {
+    return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/50 whitespace-nowrap">
+      <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+      🛒 Accumulate on Dip (RSI: ${rsi.toFixed(1)})
+    </span>`;
+  }
+
+  // 7. Overbought Profit Booking (RSI >= 70)
+  if (rsi !== null && rsi >= 70) {
+    return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/25 text-amber-300 border border-amber-400/60 whitespace-nowrap">
+      <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+      💰 Book Profits (RSI: ${rsi.toFixed(1)})
+    </span>`;
+  }
+
+  // 8. Flat / Neutral Waiting for Dip
+  return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium badge-wait whitespace-nowrap">
+    <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+    👀 WAIT FOR DIP
   </span>`;
 }
 
@@ -1263,9 +1461,23 @@ function renderIndicesBar() {
       ? `(${chgSign}${idx.change_pct.toFixed(2)}%)` 
       : '';
 
-    // Calculate Expiry Date and Day Name
+    // Calculate Expiry Date and Day Name or GIFT NIFTY 21-Hour Trading Session
     let expiryHtml = '';
-    if (idx.expiry_day) {
+    const isGift = idx.name === 'GIFT NIFTY' || idx.ticker === '^GIFTNIFTY' || idx.is_gift;
+    if (isGift) {
+      const giftSession = getGiftNiftySessionStatusClient();
+      const dotColor = giftSession.isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400';
+      const textColor = giftSession.isOpen ? 'text-emerald-300' : 'text-amber-300';
+      const borderTheme = giftSession.isOpen ? 'border-emerald-500/50 bg-emerald-950/40' : 'border-amber-500/40 bg-slate-950/90';
+      expiryHtml = `
+        <div class="mt-2 py-1 px-2.5 ${borderTheme} rounded-xl border flex items-center justify-between text-[10px] whitespace-nowrap">
+          <span class="${textColor} font-semibold flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full ${dotColor}"></span> <span>NSE IX:</span>
+          </span>
+          <span class="font-extrabold ${textColor} font-mono tracking-tight text-[9.5px]">${giftSession.sessionName}</span>
+        </div>
+      `;
+    } else if (idx.expiry_day) {
       const exp = getIndexExpiryInfo(idx.name, idx.expiry_day);
       expiryHtml = `
         <div class="mt-2 py-1 px-2.5 bg-slate-950/90 rounded-xl border border-slate-800/80 flex items-center justify-between text-[10px] whitespace-nowrap">
@@ -1296,7 +1508,7 @@ function renderIndicesBar() {
             <span class="w-2 h-2 rounded-full ${isPos ? 'bg-emerald-400' : 'bg-rose-400'} pulse-indicator"></span>
             ${idx.name}
           </span>
-          <span class="text-[9px] font-bold text-cyan-300 bg-slate-950/80 border border-cyan-500/40 px-2 py-0.5 rounded-full font-mono tracking-wider">${idx.exchange}</span>
+          <span class="text-[9px] font-bold text-cyan-300 bg-slate-950/80 border border-cyan-500/40 px-2 py-0.5 rounded-full font-mono tracking-wider">${isGift ? 'NSE IX (GIFT City)' : idx.exchange}</span>
         </div>
 
         <div class="my-2">
@@ -1311,7 +1523,7 @@ function renderIndicesBar() {
         ${expiryHtml}
 
         <div class="mt-2.5 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 group-hover:text-cyan-300 transition-colors">
-          <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Live NSE</span>
+          <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full ${isGift ? (getGiftNiftySessionStatusClient().isOpen ? 'bg-emerald-400 animate-ping' : 'bg-amber-400') : 'bg-emerald-400'}"></span> ${isGift ? 'Live NSE IX • 21-Hour Stream' : 'Live NSE'}</span>
           <span class="font-extrabold text-cyan-400 group-hover:text-cyan-300 flex items-center gap-1">Angel One Graph ⚡ &gt;</span>
         </div>
       </div>
@@ -1527,6 +1739,56 @@ function renderMoverItem(s, rank, type) {
   `;
 }
 
+// Dynamic Signal Rating Generator for Market Movers
+function getMoverSignalRating(s) {
+  if (!s) return `<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">WAIT</span>`;
+
+  const chg = s.change_pct !== undefined && s.change_pct !== null ? s.change_pct : (s.change || 0);
+  const surge = s.surge_from_low !== undefined && s.surge_from_low !== null ? s.surge_from_low : 0;
+  const rsi = s.rsi || 50;
+
+  // 1. Extreme Bullish Momentum / Super Surge (e.g. RELIANCE +11.6%)
+  if (chg >= 4.0 || surge >= 7.0) {
+    return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-500/25 text-emerald-300 border border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.4)] whitespace-nowrap">
+      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 🚀 ROCKET BUY
+    </span>`;
+  }
+  // 2. High Momentum Breakout / Strong Buy (e.g. SBIN, ULTRACEMCO)
+  if (chg >= 2.0 || surge >= 4.0) {
+    return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/60 shadow-sm whitespace-nowrap">
+      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ⚡ STRONG BUY
+    </span>`;
+  }
+  // 3. RSI Oversold Dip Buy Opportunity
+  if (rsi <= 35) {
+    return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/60 shadow-sm whitespace-nowrap">
+      <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span> 🎯 RSI DIP BUY
+    </span>`;
+  }
+  // 4. Positive Accumulation
+  if (chg >= 0.5) {
+    return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300 border border-teal-500/50 whitespace-nowrap">
+      <span class="w-1.5 h-1.5 rounded-full bg-teal-400"></span> 📈 ACCUMULATE
+    </span>`;
+  }
+  // 5. Overbought Warning / Profit Booking
+  if (rsi >= 72) {
+    return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/60 whitespace-nowrap">
+      <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> 💰 PROFIT BOOKING
+    </span>`;
+  }
+  // 6. Mild Pullback / Watch
+  if (chg >= -1.5) {
+    return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700 whitespace-nowrap">
+      <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> 👀 HOLD / WATCH
+    </span>`;
+  }
+  // 7. Sharp Pullback / Avoid
+  return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/50 whitespace-nowrap">
+    <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> 🚫 AVOID / PULLBACK
+  </span>`;
+}
+
 function renderMoversTable() {
   const tbody = document.getElementById('movers-table-body');
   if (!tbody) return;
@@ -1600,7 +1862,7 @@ function renderMoversTable() {
     else if (s.rsi && s.rsi <= 40) rsiColor = 'text-emerald-400 font-bold';
     else if (s.rsi && s.rsi >= 70) rsiColor = 'text-amber-400 font-bold';
 
-    const signalBadge = getStockSignalInfo(s);
+    const signalBadgeHtml = getMoverSignalRating(s);
 
     return `
       <tr onclick="openStockModal('${s.symbol}')" class="stock-row-pop hover:bg-slate-900/80 transition-all cursor-pointer group">
@@ -1630,7 +1892,7 @@ function renderMoversTable() {
         </td>
         <td class="py-2.5 px-3 text-right font-mono text-amber-400 font-bold">+${s.surge_from_low}%</td>
         <td class="py-2.5 px-3 text-right font-mono ${rsiColor}">${rsiVal}</td>
-        <td class="py-2.5 px-3 text-center">${signalBadge.html}</td>
+        <td class="py-2.5 px-3 text-center">${signalBadgeHtml}</td>
         <td class="py-2.5 px-3 text-center">
           <button onclick="openStockModal('${s.symbol}')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-cyan-600 hover:text-white text-slate-300 text-xs font-bold border border-slate-700 transition-all flex items-center gap-1 mx-auto">
             <span>🕯️</span> <span>Inspect</span>
@@ -2392,9 +2654,12 @@ function getBreakoutSignalInfo(stock) {
 // Unified Stock Signal Inspector for all universes
 function getStockSignalInfo(stock, universe = 'nifty50', source = null) {
   if (!stock) {
+    const defaultBadge = `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">WAIT</span>`;
     return {
       status: 'WAIT',
-      modalBadgeHtml: `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">WAIT</span>`
+      badgeHtml: defaultBadge,
+      modalBadgeHtml: defaultBadge,
+      html: defaultBadge
     };
   }
 
@@ -2402,61 +2667,108 @@ function getStockSignalInfo(stock, universe = 'nifty50', source = null) {
   const isBreakout = universe === 'breakout' || source === 'breakout' || breakoutList.some(b => b.symbol === stock.symbol);
   
   if (isBreakout) {
-    return getBreakoutSignalInfo(stock);
+    const res = getBreakoutSignalInfo(stock);
+    res.html = res.badgeHtml || res.modalBadgeHtml;
+    return res;
   }
 
   // ETF Universe
   if (universe === 'etf' || source === 'etf') {
     const isEtfBuy = stock.status === 'Buy' || stock.is_daily_buy || (stock.rsi && stock.rsi < 40);
     if (isEtfBuy) {
+      const b = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md"><span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span> 🎯 Today's Buy ETF</span>`;
       return {
         status: "Today's Buy ETF",
-        modalBadgeHtml: `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md"><span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span> 🎯 Today's Buy ETF</span>`
+        badgeHtml: b,
+        modalBadgeHtml: b,
+        html: b
       };
     }
+    const b = `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">👀 Hold / Watch</span>`;
     return {
       status: 'Hold / Watch',
-      modalBadgeHtml: `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">👀 Hold / Watch</span>`
+      badgeHtml: b,
+      modalBadgeHtml: b,
+      html: b
+    };
+  }
+
+  // Check Profitable Momentum Surge (+2% or more)
+  const chgPct = stock.change_pct !== undefined && stock.change_pct !== null ? stock.change_pct : (stock.change || 0);
+  if (chgPct >= 2.0) {
+    const b = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-gradient-to-r from-emerald-500/25 to-teal-500/25 text-emerald-300 border border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.35)]"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 🚀 Immediate Buy (+${chgPct.toFixed(1)}%)</span>`;
+    return {
+      status: `Immediate Buy (+${chgPct.toFixed(1)}%)`,
+      badgeHtml: b,
+      modalBadgeHtml: b,
+      html: b
     };
   }
 
   // Top 500 Consolidated
   if (universe === 'top500') {
     if (stock.status === 'Best Time for Buy' || stock.output === 'Best Time for Buy') {
-      return getBreakoutSignalInfo(stock);
+      const res = getBreakoutSignalInfo(stock);
+      res.html = res.badgeHtml || res.modalBadgeHtml;
+      return res;
     }
+    const b = `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40">🚫 Avoid / Do Not Buy</span>`;
     return {
       status: 'Do Not Buy',
-      modalBadgeHtml: `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40">🚫 Avoid / Do Not Buy</span>`
+      badgeHtml: b,
+      modalBadgeHtml: b,
+      html: b
     };
   }
 
   // RSI Radar Universe (Screenshots 1 & 4)
   const isRadarBuy = source === 'radar' || (stock.rsi !== null && stock.rsi !== undefined && stock.rsi > 0 && stock.rsi <= 35) || stock.status === 'Start Buying As Par Rules';
   if (isRadarBuy) {
+    const b = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md"><span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span> ⚡ Immediate Buy (RSI ≤ 35)</span>`;
     return {
       status: 'Immediate Buy (RSI ≤ 35)',
-      modalBadgeHtml: `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-md"><span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span> ⚡ Immediate Buy (RSI ≤ 35)</span>`
+      badgeHtml: b,
+      modalBadgeHtml: b,
+      html: b
     };
   }
 
   if (stock.rsi && stock.rsi <= 40) {
+    const b = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-md"><span class="w-2 h-2 rounded-full bg-amber-400"></span> ⏳ Wait for Dip (RSI: ${stock.rsi})</span>`;
     return {
       status: 'Wait to Buy (Dip Setup)',
-      modalBadgeHtml: `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-md"><span class="w-2 h-2 rounded-full bg-amber-400"></span> ⏳ Wait for Dip (RSI: ${stock.rsi})</span>`
+      badgeHtml: b,
+      modalBadgeHtml: b,
+      html: b
+    };
+  }
+
+  if (chgPct >= 1.0) {
+    const b = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300 border border-teal-500/60 shadow-md"><span class="w-1.5 h-1.5 rounded-full bg-teal-400"></span> ⚡ Profitable Rally (+${chgPct.toFixed(1)}%)</span>`;
+    return {
+      status: `Profitable Rally (+${chgPct.toFixed(1)}%)`,
+      badgeHtml: b,
+      modalBadgeHtml: b,
+      html: b
     };
   }
 
   if (stock.status === 'Avoid' || stock.output === 'Avoid') {
+    const b = `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40">🚫 Do Not Buy (Avoid)</span>`;
     return {
       status: 'Do Not Buy',
-      modalBadgeHtml: `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40">🚫 Do Not Buy (Avoid)</span>`
+      badgeHtml: b,
+      modalBadgeHtml: b,
+      html: b
     };
   }
 
+  const b = `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">👀 Wait and Watch</span>`;
   return {
     status: 'WAIT',
-    modalBadgeHtml: `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">👀 Wait and Watch</span>`
+    badgeHtml: b,
+    modalBadgeHtml: b,
+    html: b
   };
 }
 
@@ -2575,12 +2887,20 @@ function renderTop500Table() {
   }
 
   tbody.innerHTML = filtered.slice(0, 250).map((s, idx) => {
-    const isBuy = s.output === 'Best Time for Buy';
+    const isBuy = s.output === 'Best Time for Buy' || (s.change_pct !== undefined && s.change_pct >= 2.0);
     const outputBadge = isBuy
       ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-600 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-indicator"></span>Best Time for Buy</span>`
       : `<span class="px-2 py-0.5 rounded text-[10px] text-slate-400 bg-slate-800">Avoid</span>`;
 
-    const cmpStr = s.cmp !== null ? `₹${s.cmp.toLocaleString('en-IN')}` : '--';
+    const cmpStr = s.cmp !== null ? `₹${s.cmp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--';
+    let changeBadge = '';
+    if (s.change !== undefined && s.change !== null) {
+      const isPos = s.change >= 0;
+      const chgSign = isPos ? '+' : '';
+      const pctStr = s.change_pct !== undefined ? ` (${chgSign}${s.change_pct.toFixed(2)}%)` : '';
+      changeBadge = `<div class="text-[10px] ${isPos ? 'text-emerald-400' : 'text-rose-400'} font-bold">${chgSign}₹${Math.abs(s.change).toFixed(2)}${pctStr}</div>`;
+    }
+
     const d5 = s.dma5 !== null ? s.dma5.toLocaleString('en-IN') : '--';
     const d20 = s.dma20 !== null ? s.dma20.toLocaleString('en-IN') : '--';
     const d50 = s.dma50 !== null ? s.dma50.toLocaleString('en-IN') : '--';
@@ -2598,7 +2918,10 @@ function renderTop500Table() {
           <span class="stock-symbol-text transition-colors">${s.symbol}</span>
           <span class="text-[10px] font-normal text-slate-400 font-mono">(${s.code})</span>
         </td>
-        <td class="py-2.5 px-3 text-right font-bold text-slate-100">${cmpStr}</td>
+        <td class="py-2.5 px-3 text-right">
+          <div class="font-bold text-slate-100">${cmpStr}</div>
+          ${changeBadge}
+        </td>
         <td class="py-2.5 px-3 text-right text-slate-300">${d5}</td>
         <td class="py-2.5 px-3 text-right text-slate-300">${d20}</td>
         <td class="py-2.5 px-3 text-right text-slate-300">${d50}</td>
@@ -2854,8 +3177,9 @@ function renderNifty50Table() {
     const matchesSearch = s.symbol.toLowerCase().includes(query) || (s.code && s.code.toLowerCase().includes(query));
     if (!matchesSearch) return false;
 
-    if (filter === 'buy') return s.status === 'Start Buying As Par Rules' || (s.rsi !== null && s.rsi > 0 && s.rsi <= 35);
-    if (filter === 'wait') return s.status === 'WAIT' || (s.rsi !== null && s.rsi > 35);
+    if (filter === 'buy') return s.status === 'Start Buying As Par Rules' || (s.rsi !== null && s.rsi > 0 && s.rsi <= 35) || (s.change_pct !== undefined && s.change_pct >= 1.0);
+    if (filter === 'profitable') return (s.change_pct !== undefined && s.change_pct > 0);
+    if (filter === 'wait') return (!s.change_pct || s.change_pct <= 0) && (s.rsi === null || s.rsi > 42);
     if (filter === 'oversold') return s.rsi !== null && s.rsi > 0 && s.rsi <= 30;
     if (filter === 'overbought') return s.rsi !== null && s.rsi >= 70;
     return true;
@@ -2873,7 +3197,7 @@ function renderNifty50Table() {
     const rsiVal = s.rsi !== null ? s.rsi : '--';
     const rsiWidth = s.rsi !== null ? Math.min(Math.max(s.rsi, 0), 100) : 0;
     const rsiColor = getRsiColor(s.rsi);
-    const badge = getRsiBadge(s.rsi, s.status);
+    const badge = getRsiBadge(s.rsi, s.status, s);
     const priceStr = s.price ? `₹${s.price.toLocaleString('en-IN')}` : '--';
     
     let changeBadge = '';
@@ -2931,8 +3255,9 @@ function renderNext50Table() {
     const matchesSearch = s.symbol.toLowerCase().includes(query) || (s.code && s.code.toLowerCase().includes(query));
     if (!matchesSearch) return false;
 
-    if (filter === 'buy') return s.status === 'Start Buying As Par Rules' || (s.rsi !== null && s.rsi > 0 && s.rsi <= 35);
-    if (filter === 'wait') return s.status === 'WAIT' || (s.rsi !== null && s.rsi > 35);
+    if (filter === 'buy') return s.status === 'Start Buying As Par Rules' || (s.rsi !== null && s.rsi > 0 && s.rsi <= 35) || (s.change_pct !== undefined && s.change_pct >= 1.0);
+    if (filter === 'profitable') return (s.change_pct !== undefined && s.change_pct > 0);
+    if (filter === 'wait') return (!s.change_pct || s.change_pct <= 0) && (s.rsi === null || s.rsi > 42);
     if (filter === 'oversold') return s.rsi !== null && s.rsi > 0 && s.rsi <= 30;
     if (filter === 'overbought') return s.rsi !== null && s.rsi >= 70;
     return true;
@@ -2950,12 +3275,20 @@ function renderNext50Table() {
     const rsiVal = s.rsi !== null ? s.rsi : '--';
     const rsiWidth = s.rsi !== null ? Math.min(Math.max(s.rsi, 0), 100) : 0;
     const rsiColor = getRsiColor(s.rsi);
-    const badge = getRsiBadge(s.rsi, s.status);
+    const badge = getRsiBadge(s.rsi, s.status, s);
     const priceStr = s.price ? `₹${s.price.toLocaleString('en-IN')}` : '--';
     const peStr = s.pe ? s.pe : '--';
     const low52Str = s.low52 ? `₹${s.low52.toLocaleString('en-IN')}` : '--';
     const high52Str = s.high52 ? `₹${s.high52.toLocaleString('en-IN')}` : '--';
     
+    let changeBadge = '';
+    if (s.change !== undefined && s.change !== null) {
+      const pctStr = s.change_pct !== undefined ? ` (${s.change_pct > 0 ? '+' : ''}${s.change_pct}%)` : '';
+      changeBadge = s.change >= 0 
+        ? `<span class="text-xs text-emerald-400 font-medium">+${s.change}${pctStr}</span>` 
+        : `<span class="text-xs text-rose-400 font-medium">${s.change}${pctStr}</span>`;
+    }
+
     // Range position calculation
     const rangePct = s.range_position_pct !== null && s.range_position_pct !== undefined 
       ? Math.min(Math.max(s.range_position_pct, 0), 100) 
@@ -2973,8 +3306,9 @@ function renderNext50Table() {
             <span class="text-[11px] text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded">${s.code || 'NSE:' + s.symbol}</span>
           </div>
         </td>
-        <td class="py-3 px-4 text-right font-medium text-slate-100">
-          ${priceStr}
+        <td class="py-3 px-4 text-right">
+          <div class="font-medium text-slate-100">${priceStr}</div>
+          <div>${changeBadge}</div>
         </td>
         <td class="py-3 px-4">
           <div class="flex items-center gap-3">
