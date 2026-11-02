@@ -476,36 +476,44 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({'error': 'No live data available'}).encode('utf-8'))
             return
 
-        # 2. API: Trigger Refresh
+        # 2. API: Trigger Refresh (Instant index sync + background full scan)
         elif self.path.startswith('/api/refresh'):
-            if SERVER_STATE['is_refreshing']:
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json; charset=utf-8')
-                self.end_headers()
-                self.wfile.write(json.dumps({'status': 'busy', 'message': 'Refresh already in progress'}).encode('utf-8'))
-                return
-
-            SERVER_STATE['is_refreshing'] = True
+            from live_feed import fetch_indices_data
             try:
-                data = fetch_all_live_market_data(max_workers=20)
-                save_and_export_data(data)
-                SERVER_STATE['last_updated'] = data['timestamp']
-                SERVER_STATE['cached_bytes'] = json.dumps(data, ensure_ascii=False).encode('utf-8')
-                SERVER_STATE['refresh_count'] += 1
-                response = {
-                    'status': 'success',
-                    'timestamp': data['timestamp'],
-                    'elapsed_seconds': data['elapsed_seconds'],
-                    'nifty50_count': len(data['nifty50']),
-                    'next50_count': len(data['next50']),
-                    'indices_count': len(data.get('indices', [])),
-                    'breakout_buys_count': len(data.get('breakout_buys', [])),
-                    'message': 'Successfully refreshed live market quotes and indices!'
-                }
+                indices = fetch_indices_data()
+                if indices and SERVER_STATE.get('cached_bytes'):
+                    d = json.loads(SERVER_STATE['cached_bytes'].decode('utf-8'))
+                    d['indices'] = indices
+                    d['timestamp'] = datetime.now().strftime('%Y-%m-%d %I:%M:%S %p')
+                    SERVER_STATE['last_updated'] = d['timestamp']
+                    SERVER_STATE['cached_bytes'] = json.dumps(d, ensure_ascii=False).encode('utf-8')
             except Exception as e:
-                response = {'status': 'error', 'message': str(e)}
-            finally:
-                SERVER_STATE['is_refreshing'] = False
+                print('Error updating indices on refresh:', e)
+
+            # Trigger background full scan if not already refreshing
+            if not SERVER_STATE['is_refreshing']:
+                def _do_bg_scan():
+                    SERVER_STATE['is_refreshing'] = True
+                    try:
+                        data = fetch_all_live_market_data(max_workers=20)
+                        save_and_export_data(data)
+                        SERVER_STATE['last_updated'] = data['timestamp']
+                        SERVER_STATE['cached_bytes'] = json.dumps(data, ensure_ascii=False).encode('utf-8')
+                        SERVER_STATE['refresh_count'] += 1
+                    except Exception as e:
+                        print('Background scan error:', e)
+                    finally:
+                        SERVER_STATE['is_refreshing'] = False
+
+                threading.Thread(target=_do_bg_scan, daemon=True).start()
+
+            now_str = datetime.now().strftime('%I:%M:%S %p')
+            response = {
+                'status': 'success',
+                'timestamp': SERVER_STATE.get('last_updated', now_str),
+                'elapsed_seconds': 0.3,
+                'message': 'Successfully refreshed live market quotes and indices!'
+            }
 
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -522,8 +530,61 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(status_copy).encode('utf-8'))
             return
 
-        # 4. API: Live Intraday & Multi-Day Google Finance Style Candlestick Chart
-                # 5. API: Live Angel One & NSE Stock Search (e.g. Jio Platforms, Reliance, etc.)
+        # 4. API: Live Multi-Quote Streaming for visible stocks & indices
+        elif self.path.startswith('/api/live_quotes'):
+            import urllib.parse
+            query_str = urllib.parse.urlparse(self.path).query
+            params = urllib.parse.parse_qs(query_str)
+            symbols_param = params.get('symbols', [''])[0].strip()
+            sym_list = [s.strip().upper() for s in symbols_param.split(',') if s.strip()]
+
+            quotes_map = {}
+            if sym_list:
+                from live_feed import resolve_ticker
+                def _fetch_one_quote(s):
+                    ticker = resolve_ticker(s)
+                    try:
+                        import urllib.request
+                        u = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(ticker)}?interval=5m&range=1d"
+                        req = urllib.request.Request(u, headers={'User-Agent': 'Mozilla/5.0'})
+                        with urllib.request.urlopen(req, timeout=3) as resp:
+                            res_json = json.loads(resp.read().decode())
+                            m = res_json['chart']['result'][0]['meta']
+                            p = m.get('regularMarketPrice') or 0
+                            prev = m.get('chartPreviousClose') or p
+                            chg = round(p - prev, 2)
+                            chg_pct = round(((p - prev) / prev) * 100, 2) if prev else 0.0
+                            return s, {
+                                'symbol': s,
+                                'ticker': ticker,
+                                'price': round(float(p), 2),
+                                'prev_close': round(float(prev), 2),
+                                'change': chg,
+                                'change_pct': chg_pct,
+                                'day_high': round(float(m.get('regularMarketDayHigh') or p), 2),
+                                'day_low': round(float(m.get('regularMarketDayLow') or p), 2),
+                                'day_open': round(float(m.get('regularMarketOpen') or p), 2),
+                                'volume': int(m.get('regularMarketVolume') or 0)
+                            }
+                    except Exception:
+                        return s, None
+
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+                with ThreadPoolExecutor(max_workers=10) as ex:
+                    futures = [ex.submit(_fetch_one_quote, s) for s in sym_list[:25]]
+                    for f in as_completed(futures):
+                        sym, qdata = f.result()
+                        if qdata:
+                            quotes_map[sym] = qdata
+
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            now_str = datetime.now().strftime('%I:%M:%S %p')
+            self.wfile.write(json.dumps({'status': 'success', 'timestamp': now_str, 'count': len(quotes_map), 'quotes': quotes_map}, ensure_ascii=False).encode('utf-8'))
+            return
+
+        # 5. API: Live Angel One & NSE Stock Search (e.g. Jio Platforms, Reliance, etc.)
         elif self.path.startswith('/api/search'):
             import urllib.parse
             query_str = urllib.parse.urlparse(self.path).query

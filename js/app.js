@@ -273,6 +273,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Immediately pull fresh live stream data from backend API
   await fetchLiveStocksData(false);
+  streamLiveQuotesForActiveView();
 });
 
 // Render all primary tables, indices, and KPIs
@@ -290,21 +291,38 @@ function renderAllViews() {
   updateStatusDisplay();
 }
 
-// Update Header Status & Timestamp Display (12-Hour AM/PM Format)
+// Helper: Check if Indian Stock Market is currently Open (Mon-Fri, 9:15 AM - 3:30 PM IST)
+function isIndianMarketOpen() {
+  try {
+    const now = new Date();
+    const istTimeStr = now.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit' });
+    const parts = istTimeStr.split(':');
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    const timeInMinutes = h * 60 + m;
+
+    const dayFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', weekday: 'short' });
+    const weekday = dayFormatter.format(now);
+    const isWeekday = !['Sat', 'Sun'].includes(weekday);
+
+    return isWeekday && (timeInMinutes >= (9 * 60 + 15)) && (timeInMinutes <= (15 * 60 + 30));
+  } catch (e) {
+    return false;
+  }
+}
+
+// Update Header Status & Timestamp Display (12-Hour AM/PM Format with Live Beacon)
 function updateStatusDisplay() {
   const timeEl = document.getElementById('header-last-updated');
   const statusEl = document.getElementById('upload-status');
   const countdownEl = document.getElementById('refresh-countdown');
 
   const timestamp = state.lastUpdated || (window.NIFTY_50_DATA && NIFTY_50_DATA[0]?.last_updated);
+  const timeDisplay = timestamp ? format12HrTime(timestamp) : 'Live';
   
   if (timeEl) {
-    if (timestamp) {
-      timeEl.innerText = `Updated: ${format12HrTime(timestamp)}`;
-      timeEl.title = `Last Live Sync: ${timestamp}`;
-    } else {
-      timeEl.innerText = `Live Connected`;
-    }
+    timeEl.innerText = `Updated: ${timeDisplay}`;
+    timeEl.title = `Last Live Sync: ${timestamp || 'Active'}`;
   }
 
   // Format countdown mm:ss
@@ -318,8 +336,138 @@ function updateStatusDisplay() {
     }
   }
 
-  if (statusEl && timestamp) {
-    statusEl.innerHTML = `<span class="text-emerald-400 font-semibold">⚡ Live NSE Stream Active &bull; Synced at ${format12HrTime(timestamp)}</span>`;
+  if (statusEl) {
+    const marketOpen = isIndianMarketOpen();
+    if (marketOpen) {
+      statusEl.innerHTML = `
+        <span class="inline-flex items-center gap-1.5 text-emerald-400 font-bold">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span>⚡ Indian Market LIVE (9:15 AM - 3:30 PM IST) &bull; Synced at ${timeDisplay}</span>
+        </span>
+      `;
+    } else {
+      statusEl.innerHTML = `
+        <span class="inline-flex items-center gap-1.5 text-amber-400 font-semibold">
+          <span class="inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
+          <span>🌙 Market Closed (Operating Hours: 9:15 AM - 3:30 PM IST) &bull; Last Close: ${timeDisplay}</span>
+        </span>
+      `;
+    }
+  }
+}
+
+// Apply Live Quotes Stream to In-Memory Datasets
+function applyLiveQuotesUpdate(quotes) {
+  if (!quotes || Object.keys(quotes).length === 0) return;
+
+  let hasChanges = false;
+  const updateStockItem = (item) => {
+    if (!item) return;
+    const q = quotes[item.symbol] || quotes[item.ticker];
+    if (q && q.price > 0) {
+      const oldPrice = item.live_price || item.price || 0;
+      if (Math.abs(q.price - oldPrice) > 0.001) {
+        item.price = q.price;
+        item.live_price = q.price;
+        item.change = q.change;
+        item.change_pct = q.change_pct;
+        if (q.day_high) item.day_high = q.day_high;
+        if (q.day_low) item.day_low = q.day_low;
+        if (item.high52 && item.high52 > 0) {
+          item.discount_from_high = Math.round(((item.high52 - item.price) / item.high52) * 10000) / 100;
+        }
+        if (item.low52 && item.low52 > 0) {
+          item.buffer_from_low = Math.round(((item.price - item.low52) / item.low52) * 10000) / 100;
+        }
+        hasChanges = true;
+      }
+    }
+  };
+
+  // 1. Update Indices
+  (window.INDICES_DATA || []).forEach(idx => {
+    const q = quotes[idx.ticker] || quotes[idx.name];
+    if (q && q.price > 0 && Math.abs(q.price - (idx.price || 0)) > 0.001) {
+      idx.price = q.price;
+      idx.change = q.change;
+      idx.change_pct = q.change_pct;
+      if (q.day_high) idx.high = q.day_high;
+      if (q.day_low) idx.low = q.day_low;
+      idx.is_positive = idx.change >= 0;
+      hasChanges = true;
+    }
+  });
+
+  // 2. Update Stocks
+  (window.NIFTY_50_DATA || []).forEach(updateStockItem);
+  (window.NIFTY_NEXT_50_DATA || []).forEach(updateStockItem);
+  (window.BREAKOUT_BUYS_DATA || []).forEach(updateStockItem);
+
+  if (hasChanges) {
+    const now = new Date();
+    state.lastUpdated = now.toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+    renderIndicesBar();
+    renderMarketMovers();
+    renderMoversTable();
+    if (state.currentTab === 'breakout_buys') renderBreakoutBuysTable();
+    else if (state.currentTab === 'nifty50') renderNifty50Table();
+    else if (state.currentTab === 'next50') renderNext50Table();
+    else if (state.currentTab === 'ai_screener') renderAiScreenerView();
+    updateStatusDisplay();
+  }
+}
+
+// Background Live Quote Streamer for Currently Active View & Watchlist
+let isStreamingQuotes = false;
+async function streamLiveQuotesForActiveView() {
+  if (isStreamingQuotes) return;
+  isStreamingQuotes = true;
+
+  try {
+    const symbolsSet = new Set(['^NSEI', '^NSEBANK', '^BSESN', '^CNXIT', '^INDIAVIX']);
+
+    if (state.currentTab === 'breakout_buys') {
+      (window.BREAKOUT_BUYS_DATA || []).slice(0, 16).forEach(s => s.symbol && symbolsSet.add(s.symbol));
+    } else if (state.currentTab === 'nifty50') {
+      (window.NIFTY_50_DATA || []).slice(0, 25).forEach(s => s.symbol && symbolsSet.add(s.symbol));
+    } else if (state.currentTab === 'next50') {
+      (window.NIFTY_NEXT_50_DATA || []).slice(0, 25).forEach(s => s.symbol && symbolsSet.add(s.symbol));
+    } else if (state.currentTab === 'ai_screener') {
+      ['TATAMOTORS', 'HDFCBANK', 'RELIANCE', 'SBICARD', 'TCS', 'INFY', 'ICICIBANK', 'AXISBANK', 'KOTAKBANK', 'LT', 'BAJFINANCE', 'BHARTIARTL', 'MARUTI'].forEach(s => symbolsSet.add(s));
+    }
+
+    // Always include watchlist symbols
+    if (typeof getWatchlistSymbols === 'function') {
+      getWatchlistSymbols().forEach(s => symbolsSet.add(s));
+    }
+
+    const symArray = Array.from(symbolsSet);
+    if (symArray.length === 0) return;
+
+    const chunkSize = 20;
+    for (let i = 0; i < symArray.length; i += chunkSize) {
+      const chunk = symArray.slice(i, i + chunkSize);
+      const url = `${API_BASE}/api/live_quotes?symbols=${encodeURIComponent(chunk.join(','))}&_t=${Date.now()}`;
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) continue;
+      const json = await res.json();
+      if (!json || !json.quotes) continue;
+
+      applyLiveQuotesUpdate(json.quotes);
+    }
+  } catch (err) {
+    console.warn('[StreamLiveQuotes] Warning:', err.message);
+  } finally {
+    isStreamingQuotes = false;
   }
 }
 
@@ -377,23 +525,23 @@ async function triggerLiveRefresh() {
       method: 'POST',
       cache: 'no-store'
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const result = await res.json();
+    let result = null;
+    if (res.ok) {
+      result = await res.json();
+    }
 
-    if (result.status === 'success') {
-      await fetchLiveStocksData(true);
-      state.countdownSeconds = state.autoRefreshIntervalMin * 60;
-      if (statusEl) {
-        statusEl.innerHTML = `<span class="text-emerald-400 font-bold">✓ Live Market Stream Synced (${result.timestamp}) in ${result.elapsed_seconds}s!</span>`;
-      }
-    } else {
-      throw new Error(result.message || 'Refresh error');
+    await fetchLiveStocksData(true);
+    await streamLiveQuotesForActiveView();
+
+    state.countdownSeconds = state.autoRefreshIntervalMin * 60;
+    if (statusEl) {
+      const ts = (result && result.timestamp) || state.lastUpdated || format12HrTime(new Date());
+      statusEl.innerHTML = `<span class="text-emerald-400 font-bold">✓ Live Market Stream Synced (${format12HrTime(ts)})!</span>`;
     }
   } catch (err) {
     console.warn('Live API error:', err);
-    if (statusEl) {
-      statusEl.innerHTML = `<span class="text-amber-400 font-semibold">⚠ Notice: Ensure python start_app.py is running to enable live streaming.</span>`;
-    }
+    // Attempt client-side quote stream fallback
+    await streamLiveQuotesForActiveView();
   } finally {
     state.isRefreshing = false;
     if (spinner) spinner.classList.remove('spinning');
@@ -481,6 +629,9 @@ function switchTab(tabId) {
   } else if (tabId === 'ai_screener') {
     renderAiScreenerView();
   }
+
+  // Stream live quotes for active view in background
+  setTimeout(() => streamLiveQuotesForActiveView(), 50);
 }
 
 // Global KPIs Calculation

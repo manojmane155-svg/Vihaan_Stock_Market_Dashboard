@@ -1,17 +1,34 @@
 {
   "version": 2,
   "cleanUrls": true,
-  "rewrites": [
-    {
-      "source": "/api/stocks",
-      "destination": "/live_market_data.json"
-    },
-    {
-      "source": "/api/indices",
-      "destination": "/live_market_data.json"
+  "functions": {
+    "api/*.js": {
+      "includeFiles": "live_market_data.json",
+      "maxDuration": 15
     }
-  ],
+  },
   "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET,OPTIONS,PATCH,DELETE,POST,PUT"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version"
+        }
+      ]
+    },
     {
       "source": "/(.*)",
       "headers": [

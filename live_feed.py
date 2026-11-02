@@ -71,7 +71,12 @@ TICKER_OVERRIDES = {
 }
 
 def resolve_ticker(sym):
-    return TICKER_OVERRIDES.get(sym, f"{sym}.NS")
+    clean = (sym or '').strip().upper()
+    if clean in TICKER_OVERRIDES:
+        return TICKER_OVERRIDES[clean]
+    if clean.startswith('^') or clean.endswith('.NS') or clean.endswith('.BO'):
+        return clean
+    return f"{clean}.NS"
 
 def calculate_wilder_rsi_series(dates, closes, opens=None, highs=None, lows=None, volumes=None, period=14):
     """
