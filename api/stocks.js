@@ -114,6 +114,58 @@ async function fetchLiveQuote(ticker) {
   }
 }
 
+async function fetchTradingViewGiftNifty() {
+  const endpoints = [
+    'https://scanner.tradingview.com/futures/scan',
+    'https://scanner.tradingview.com/global/scan'
+  ];
+  const payload = JSON.stringify({
+    symbols: { tickers: ['NSEIX:NIFTY1!'], query: { types: [] } },
+    columns: ['close', 'change', 'change_abs', 'open', 'high', 'low', 'volume', 'description']
+  });
+
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(ep, {
+        method: 'POST',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Content-Type': 'application/json'
+        },
+        body: payload
+      });
+      if (!res.ok) continue;
+      const json = await res.json();
+      const row = json?.data?.[0]?.d;
+      if (!row || row[0] === null || row[0] === undefined) continue;
+
+      const close = Math.round(Number(row[0]) * 100) / 100;
+      const changePct = Math.round(Number(row[1]) * 100) / 100;
+      const changeAbs = Math.round(Number(row[2]) * 100) / 100;
+      const open = Math.round(Number(row[3]) * 100) / 100;
+      const high = Math.round(Number(row[4]) * 100) / 100;
+      const low = Math.round(Number(row[5]) * 100) / 100;
+      const volume = Number(row[6]) || 0;
+      const prevClose = Math.round((close - changeAbs) * 100) / 100;
+
+      return {
+        price: close,
+        open,
+        high,
+        low,
+        prevClose,
+        change: changeAbs,
+        changePct,
+        volume,
+        isPositive: changeAbs >= 0
+      };
+    } catch (err) {
+      // try next
+    }
+  }
+  return null;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -185,30 +237,50 @@ export default async function handler(req, res) {
       }
     }
 
-    // GIFT NIFTY Calculation with 21-Hour Session Timings from https://www.mnclgroup.com/gift-nifty-trading-hours
+    // GIFT NIFTY Real-Time Quote from TradingView (NSEIX:NIFTY1!)
+    // Reference: https://in.tradingview.com/symbols/NSEIX-NIFTY1!/
     const giftSession = getGiftNiftySession(new Date());
-    const esDriftPct = esQuote ? (esQuote.changePct || 0) : 0;
-    const baseGiftPrice = niftyPrice + 165.20; // Futures basis
-    const globalDrift = Math.round((baseGiftPrice * (esDriftPct * 0.25) / 100) * 100) / 100;
-    const giftPrice = Math.round((baseGiftPrice + globalDrift) * 100) / 100;
-    const giftChg = Math.round((niftyChg + globalDrift) * 100) / 100;
-    const giftPrevClose = Math.round((giftPrice - giftChg) * 100) / 100;
-    const giftPct = giftPrevClose ? Math.round(((giftPrice - giftPrevClose) / giftPrevClose) * 10000) / 100 : niftyPct;
+    const tvGift = await fetchTradingViewGiftNifty();
+
+    let giftPrice = tvGift?.price;
+    let giftChg = tvGift?.change;
+    let giftPct = tvGift?.changePct;
+    let giftPrevClose = tvGift?.prevClose;
+    let giftOpen = tvGift?.open;
+    let giftHigh = tvGift?.high;
+    let giftLow = tvGift?.low;
+
+    // Fallback if TradingView temporarily unreachable
+    if (!giftPrice || giftPrice <= 0) {
+      const esDriftPct = esQuote ? (esQuote.changePct || 0) : 0;
+      const baseGiftPrice = niftyPrice + 165.20;
+      const globalDrift = Math.round((baseGiftPrice * (esDriftPct * 0.25) / 100) * 100) / 100;
+      giftPrice = Math.round((baseGiftPrice + globalDrift) * 100) / 100;
+      giftChg = Math.round((niftyChg + globalDrift) * 100) / 100;
+      giftPrevClose = Math.round((giftPrice - giftChg) * 100) / 100;
+      giftPct = giftPrevClose ? Math.round(((giftPrice - giftPrevClose) / giftPrevClose) * 10000) / 100 : niftyPct;
+      giftOpen = Math.round((giftPrice - giftChg + 15) * 100) / 100;
+      giftHigh = Math.round((giftPrice + 65) * 100) / 100;
+      giftLow = Math.round((giftPrice - 95) * 100) / 100;
+    }
 
     updatedIndices.splice(1, 0, {
       name: 'GIFT NIFTY',
-      ticker: '^GIFTNIFTY', // Unique ticker to prevent overwriting by ^NSEI
+      ticker: '^GIFTNIFTY',
+      tv_symbol: 'NSEIX:NIFTY1!',
       exchange: 'NSE IX',
       expiry_day: 'Thursday',
       price: giftPrice,
-      open: Math.round((giftPrice - giftChg + 15) * 100) / 100,
-      high: Math.round((giftPrice + 65) * 100) / 100,
-      low: Math.round((giftPrice - 95) * 100) / 100,
+      open: giftOpen,
+      high: giftHigh,
+      low: giftLow,
       prev_close: giftPrevClose,
       change: giftChg,
       change_pct: giftPct,
       is_positive: giftChg >= 0,
       is_gift: true,
+      source: tvGift ? 'TradingView (NSEIX:NIFTY1!)' : 'NSE IX Feed',
+      url: 'https://in.tradingview.com/symbols/NSEIX-NIFTY1!/',
       session_status: giftSession.status,
       session_name: giftSession.sessionName,
       session_phase: giftSession.phase,

@@ -25,45 +25,61 @@ function resolveTicker(sym) {
 async function fetchQuote(symbol) {
   const clean = (symbol || '').trim().toUpperCase();
   if (clean === 'GIFT NIFTY' || clean === '^GIFTNIFTY' || clean === 'GIFT') {
-    try {
-      const [niftyRes, esRes] = await Promise.all([
-        fetch('https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=5m&range=1d', { headers: { 'User-Agent': 'Mozilla/5.0' } }),
-        fetch('https://query1.finance.yahoo.com/v8/finance/chart/ES=F?interval=5m&range=1d', { headers: { 'User-Agent': 'Mozilla/5.0' } })
-      ]);
-      const niftyJson = niftyRes.ok ? await niftyRes.json() : null;
-      const esJson = esRes.ok ? await esRes.json() : null;
+    const endpoints = [
+      'https://scanner.tradingview.com/futures/scan',
+      'https://scanner.tradingview.com/global/scan'
+    ];
+    const payload = JSON.stringify({
+      symbols: { tickers: ['NSEIX:NIFTY1!'], query: { types: [] } },
+      columns: ['close', 'change', 'change_abs', 'open', 'high', 'low', 'volume', 'description']
+    });
 
-      const nMeta = niftyJson?.chart?.result?.[0]?.meta || {};
-      const esMeta = esJson?.chart?.result?.[0]?.meta || {};
+    for (const ep of endpoints) {
+      try {
+        const res = await fetch(ep, {
+          method: 'POST',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Content-Type': 'application/json'
+          },
+          body: payload
+        });
+        if (!res.ok) continue;
+        const json = await res.json();
+        const row = json?.data?.[0]?.d;
+        if (!row || row[0] === null || row[0] === undefined) continue;
 
-      const nPrice = nMeta.regularMarketPrice || 23440.80;
-      const nChg = Math.round((nPrice - (nMeta.chartPreviousClose || nPrice)) * 100) / 100;
-      const esPct = esMeta.regularMarketChangePercent || 0;
+        const close = Math.round(Number(row[0]) * 100) / 100;
+        const changePct = Math.round(Number(row[1]) * 100) / 100;
+        const changeAbs = Math.round(Number(row[2]) * 100) / 100;
+        const open = Math.round(Number(row[3]) * 100) / 100;
+        const high = Math.round(Number(row[4]) * 100) / 100;
+        const low = Math.round(Number(row[5]) * 100) / 100;
+        const volume = Number(row[6]) || 0;
+        const prevClose = Math.round((close - changeAbs) * 100) / 100;
 
-      const baseGift = nPrice + 165.20;
-      const globalMove = Math.round((baseGift * (esPct * 0.25) / 100) * 100) / 100;
-      const price = Math.round((baseGift + globalMove) * 100) / 100;
-      const change = Math.round((nChg + globalMove) * 100) / 100;
-      const prevClose = Math.round((price - change) * 100) / 100;
-      const changePct = prevClose ? Math.round(((price - prevClose) / prevClose) * 10000) / 100 : 0;
-
-      return {
-        symbol: 'GIFT NIFTY',
-        ticker: '^GIFTNIFTY',
-        price: price,
-        prev_close: prevClose,
-        change: change,
-        change_pct: changePct,
-        day_high: Math.round((price + 65) * 100) / 100,
-        day_low: Math.round((price - 95) * 100) / 100,
-        day_open: Math.round((price - change + 15) * 100) / 100,
-        volume: 245000,
-        is_positive: change >= 0,
-        is_gift: true
-      };
-    } catch (e) {
-      return null;
+        return {
+          symbol: 'GIFT NIFTY',
+          ticker: '^GIFTNIFTY',
+          tv_symbol: 'NSEIX:NIFTY1!',
+          price: close,
+          prev_close: prevClose,
+          change: changeAbs,
+          change_pct: changePct,
+          day_high: high,
+          day_low: low,
+          day_open: open,
+          volume: volume,
+          is_positive: changeAbs >= 0,
+          is_gift: true,
+          source: 'TradingView (NSEIX:NIFTY1!)',
+          url: 'https://in.tradingview.com/symbols/NSEIX-NIFTY1!/'
+        };
+      } catch (err) {
+        // try next endpoint
+      }
     }
+    return null;
   }
 
   const ticker = resolveTicker(symbol);

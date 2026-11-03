@@ -554,46 +554,54 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
                 def _fetch_one_quote(s):
                     clean = (s or '').strip().upper()
                     if clean in ['GIFT NIFTY', '^GIFTNIFTY', 'GIFT']:
-                        try:
-                            import urllib.request
-                            u_nifty = "https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=5m&range=1d"
-                            u_es = "https://query1.finance.yahoo.com/v8/finance/chart/ES=F?interval=5m&range=1d"
-                            req_n = urllib.request.Request(u_nifty, headers={'User-Agent': 'Mozilla/5.0'})
-                            req_e = urllib.request.Request(u_es, headers={'User-Agent': 'Mozilla/5.0'})
-                            with urllib.request.urlopen(req_n, timeout=3) as rn:
-                                d_n = json.loads(rn.read().decode())['chart']['result'][0]['meta']
-                            es_pct = 0.0
+                        # Direct Real-Time Quote from TradingView (NSEIX:NIFTY1!)
+                        # https://in.tradingview.com/symbols/NSEIX-NIFTY1!/
+                        endpoints = [
+                            'https://scanner.tradingview.com/futures/scan',
+                            'https://scanner.tradingview.com/global/scan'
+                        ]
+                        payload = json.dumps({
+                            'symbols': {'tickers': ['NSEIX:NIFTY1!'], 'query': {'types': []}},
+                            'columns': ['close', 'change', 'change_abs', 'open', 'high', 'low', 'volume', 'description']
+                        }).encode('utf-8')
+                        headers_tv = {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'Content-Type': 'application/json'
+                        }
+                        for ep in endpoints:
                             try:
-                                with urllib.request.urlopen(req_e, timeout=3) as re:
-                                    d_e = json.loads(re.read().decode())['chart']['result'][0]['meta']
-                                    es_pct = float(d_e.get('regularMarketChangePercent') or 0.0)
+                                import urllib.request
+                                req_tv = urllib.request.Request(ep, data=payload, headers=headers_tv)
+                                with urllib.request.urlopen(req_tv, timeout=3) as r_tv:
+                                    res_tv = json.loads(r_tv.read().decode('utf-8'))
+                                row = res_tv.get('data', [])[0]['d']
+                                close = round(float(row[0]), 2)
+                                change_pct = round(float(row[1]), 2)
+                                change_abs = round(float(row[2]), 2)
+                                day_open = round(float(row[3]), 2)
+                                day_high = round(float(row[4]), 2)
+                                day_low = round(float(row[5]), 2)
+                                volume = int(row[6]) if row[6] is not None else 35000
+                                prev_close = round(close - change_abs, 2)
+                                return s, {
+                                    'symbol': 'GIFT NIFTY',
+                                    'ticker': '^GIFTNIFTY',
+                                    'tv_symbol': 'NSEIX:NIFTY1!',
+                                    'price': close,
+                                    'prev_close': prev_close,
+                                    'change': change_abs,
+                                    'change_pct': change_pct,
+                                    'day_high': day_high,
+                                    'day_low': day_low,
+                                    'day_open': day_open,
+                                    'volume': volume,
+                                    'is_positive': change_abs >= 0,
+                                    'is_gift': True,
+                                    'source': 'TradingView (NSEIX:NIFTY1!)',
+                                    'url': 'https://in.tradingview.com/symbols/NSEIX-NIFTY1!/'
+                                }
                             except Exception:
                                 pass
-
-                            np = float(d_n.get('regularMarketPrice') or 23440.8)
-                            npc = float(d_n.get('chartPreviousClose') or np)
-                            nchg = np - npc
-                            base_gift = np + 165.20
-                            drift = round(base_gift * (es_pct * 0.25) / 100.0, 2)
-                            price = round(base_gift + drift, 2)
-                            chg = round(nchg + drift, 2)
-                            prev = round(price - chg, 2)
-                            chg_pct = round(((price - prev) / prev) * 100.0, 2) if prev else 0.0
-                            return s, {
-                                'symbol': 'GIFT NIFTY',
-                                'ticker': '^GIFTNIFTY',
-                                'price': price,
-                                'prev_close': prev,
-                                'change': chg,
-                                'change_pct': chg_pct,
-                                'day_high': round(price + 65.0, 2),
-                                'day_low': round(price - 95.0, 2),
-                                'day_open': round(price - chg + 15.0, 2),
-                                'volume': 245000,
-                                'is_gift': True
-                            }
-                        except Exception as e:
-                            return s, None
 
                     ticker = resolve_ticker(s)
                     try:

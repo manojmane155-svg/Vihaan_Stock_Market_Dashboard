@@ -533,14 +533,17 @@ function applyLiveQuotesUpdate(quotes) {
   // 1. Update Indices (Carefully distinguish GIFT NIFTY from NIFTY 50 spot!)
   (window.INDICES_DATA || []).forEach(idx => {
     if (idx.name === 'GIFT NIFTY' || idx.is_gift) {
-      const q = quotes['GIFT NIFTY'] || quotes['^GIFTNIFTY'];
+      const q = quotes['GIFT NIFTY'] || quotes['^GIFTNIFTY'] || quotes['NSEIX:NIFTY1!'];
       if (q && q.price > 0 && Math.abs(q.price - (idx.price || 0)) > 0.001) {
         idx.price = q.price;
         idx.change = q.change;
         idx.change_pct = q.change_pct;
         if (q.day_high) idx.high = q.day_high;
         if (q.day_low) idx.low = q.day_low;
+        if (q.day_open) idx.open = q.day_open;
+        if (q.prev_close) idx.prev_close = q.prev_close;
         idx.is_positive = idx.change >= 0;
+        idx.source = 'TradingView (NSEIX:NIFTY1!)';
         hasChanges = true;
       }
       return;
@@ -708,6 +711,50 @@ async function streamLiveQuotesForActiveView() {
           .catch(err => console.warn('[StreamQuotesBatch] Error:', err.message))
       );
     }
+
+    // Direct Real-Time Quote from TradingView for GIFT NIFTY (NSEIX:NIFTY1!)
+    batchPromises.push(
+      fetch('https://scanner.tradingview.com/futures/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbols: { tickers: ['NSEIX:NIFTY1!'], query: { types: [] } },
+          columns: ['close', 'change', 'change_abs', 'open', 'high', 'low', 'volume', 'description']
+        })
+      })
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        const row = json?.data?.[0]?.d;
+        if (row && row[0] !== null && row[0] !== undefined) {
+          const close = Math.round(Number(row[0]) * 100) / 100;
+          const changePct = Math.round(Number(row[1]) * 100) / 100;
+          const changeAbs = Math.round(Number(row[2]) * 100) / 100;
+          const open = Math.round(Number(row[3]) * 100) / 100;
+          const high = Math.round(Number(row[4]) * 100) / 100;
+          const low = Math.round(Number(row[5]) * 100) / 100;
+          const prevClose = Math.round((close - changeAbs) * 100) / 100;
+          applyLiveQuotesUpdate({
+            'GIFT NIFTY': {
+              symbol: 'GIFT NIFTY',
+              ticker: '^GIFTNIFTY',
+              tv_symbol: 'NSEIX:NIFTY1!',
+              price: close,
+              prev_close: prevClose,
+              change: changeAbs,
+              change_pct: changePct,
+              day_high: high,
+              day_low: low,
+              day_open: open,
+              is_positive: changeAbs >= 0,
+              is_gift: true,
+              source: 'TradingView (NSEIX:NIFTY1!)',
+              url: 'https://in.tradingview.com/symbols/NSEIX-NIFTY1!/'
+            }
+          });
+        }
+      })
+      .catch(() => {})
+    );
 
     await Promise.all(batchPromises);
   } catch (err) {
@@ -1575,12 +1622,15 @@ function renderIndicesBar() {
     timeEl.innerText = `Updated: ${format12HrTime(data[0].last_updated)}`;
   }
 
+  const indianMarketOpen = isIndianMarketOpen();
+
   container.innerHTML = data.map(idx => {
     const isPos = idx.change >= 0;
-    const borderClass = isPos ? 'border-l-4 border-emerald-500' : 'border-l-4 border-rose-500';
-    const textPriceClass = isPos ? 'text-emerald-700' : 'text-rose-700';
+    const isGift = idx.name === 'GIFT NIFTY' || idx.ticker === '^GIFTNIFTY' || idx.is_gift;
+    const giftSession = isGift ? getGiftNiftySessionStatusClient() : null;
+    const isLive = isGift ? giftSession.isOpen : indianMarketOpen;
+
     const chgSign = idx.change > 0 ? '+' : '';
-    const badgeBg = isPos ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800';
     const priceStr = idx.price !== null && idx.price !== undefined 
       ? idx.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) 
       : '--';
@@ -1591,51 +1641,82 @@ function renderIndicesBar() {
       ? `(${chgSign}${idx.change_pct.toFixed(2)}%)` 
       : '';
 
-    // Calculate Expiry Date and Day Name or GIFT NIFTY 21-Hour Trading Session
+    // Blinking Green Light (animate-ping) for Live Session on ALL Active Indexes
+    const liveBeaconHtml = isLive ? `
+      <span class="relative flex h-2.5 w-2.5">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+      </span>
+    ` : `
+      <span class="w-2.5 h-2.5 rounded-full ${isPos ? 'bg-emerald-400' : 'bg-rose-400'}"></span>
+    `;
+
+    // Expiry or Session Phasing Badge with Synchronized Live Beacon
     let expiryHtml = '';
-    const isGift = idx.name === 'GIFT NIFTY' || idx.ticker === '^GIFTNIFTY' || idx.is_gift;
     if (isGift) {
-      const giftSession = getGiftNiftySessionStatusClient();
-      const dotColor = giftSession.isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400';
-      const textColor = giftSession.isOpen ? 'text-emerald-300' : 'text-amber-300';
-      const borderTheme = giftSession.isOpen ? 'border-emerald-500/50 bg-emerald-950/40' : 'border-amber-500/40 bg-slate-950/90';
+      const textColor = isLive ? 'text-emerald-300' : 'text-amber-300';
+      const borderTheme = isLive ? 'border-emerald-500/50 bg-emerald-950/40' : 'border-amber-500/40 bg-slate-950/90';
       expiryHtml = `
         <div class="mt-2 py-1 px-2.5 ${borderTheme} rounded-xl border flex items-center justify-between text-[10px] whitespace-nowrap">
           <span class="${textColor} font-semibold flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full ${dotColor}"></span> <span>NSE IX:</span>
+            <span class="relative flex h-2 w-2">
+              ${isLive ? '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>' : ''}
+              <span class="relative inline-flex rounded-full h-2 w-2 ${isLive ? 'bg-emerald-400' : 'bg-amber-400'}"></span>
+            </span>
+            <span>NSE IX:</span>
           </span>
           <span class="font-extrabold ${textColor} font-mono tracking-tight text-[9.5px]">${giftSession.sessionName}</span>
         </div>
       `;
     } else if (idx.expiry_day) {
       const exp = getIndexExpiryInfo(idx.name, idx.expiry_day);
+      const borderTheme = isLive ? 'border-emerald-500/40 bg-emerald-950/30' : 'border-slate-800/80 bg-slate-950/90';
+      const textColor = isLive ? 'text-emerald-300' : 'text-slate-400';
       expiryHtml = `
-        <div class="mt-2 py-1 px-2.5 bg-slate-950/90 rounded-xl border border-slate-800/80 flex items-center justify-between text-[10px] whitespace-nowrap">
-          <span class="text-slate-400 font-semibold flex items-center gap-1">
-            <span>📅</span> <span>Expiry:</span>
+        <div class="mt-2 py-1 px-2.5 ${borderTheme} rounded-xl border flex items-center justify-between text-[10px] whitespace-nowrap">
+          <span class="${textColor} font-semibold flex items-center gap-1.5">
+            <span class="relative flex h-2 w-2">
+              ${isLive ? '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>' : ''}
+              <span class="relative inline-flex rounded-full h-2 w-2 ${isLive ? 'bg-emerald-400' : 'bg-slate-500'}"></span>
+            </span>
+            <span>📅 Expiry:</span>
           </span>
-          <span class="font-extrabold text-cyan-400 font-mono tracking-tight">${exp.displayStr}</span>
+          <span class="font-extrabold ${isLive ? 'text-emerald-300' : 'text-cyan-400'} font-mono tracking-tight">${exp.displayStr}</span>
         </div>
       `;
     } else {
+      const borderTheme = isLive ? 'border-emerald-500/40 bg-emerald-950/30' : 'border-slate-800/80 bg-slate-950/90';
+      const textColor = isLive ? 'text-emerald-300' : 'text-amber-400';
       expiryHtml = `
-        <div class="mt-2 py-1 px-2.5 bg-slate-950/90 rounded-xl border border-slate-800/80 flex items-center justify-between text-[10px] whitespace-nowrap">
-          <span class="text-amber-400 font-semibold flex items-center gap-1">
-            <span>⚡</span> <span>Volatility:</span>
+        <div class="mt-2 py-1 px-2.5 ${borderTheme} rounded-xl border flex items-center justify-between text-[10px] whitespace-nowrap">
+          <span class="${textColor} font-semibold flex items-center gap-1.5">
+            <span class="relative flex h-2 w-2">
+              ${isLive ? '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>' : ''}
+              <span class="relative inline-flex rounded-full h-2 w-2 ${isLive ? 'bg-emerald-400' : 'bg-amber-400'}"></span>
+            </span>
+            <span>⚡ Volatility:</span>
           </span>
-          <span class="font-extrabold text-amber-300 font-mono tracking-tight">Market Gauge</span>
+          <span class="font-extrabold ${isLive ? 'text-emerald-300' : 'text-amber-300'} font-mono tracking-tight">${isLive ? 'Live Trading' : 'Market Closed'}</span>
         </div>
       `;
     }
 
+    const footerText = isGift
+      ? 'Live NSE IX • 21-Hour Stream'
+      : (isLive ? 'Live Trading (08:45-15:30)' : 'Market Closed');
+
+    const actionText = isGift ? 'TradingView Graph ⚡ &gt;' : 'Angel One Graph ⚡ &gt;';
+    const actionColor = isGift ? 'text-emerald-400 group-hover:text-emerald-300' : 'text-cyan-400 group-hover:text-cyan-300';
+    const cardTitle = isGift ? 'Click to view live TradingView chart of GIFT NIFTY (NSEIX:NIFTY1!)' : `Click to view live Angel One graph of ${idx.name}`;
+
     return `
-      <div onclick="openIndexModal('${idx.name}')" title="Click to view live Angel One graph of ${idx.name}" class="stock-card-pop cursor-pointer select-none group flex flex-col justify-between p-3.5 rounded-2xl bg-gradient-to-br from-slate-900/95 via-[#0b1325] to-slate-950 border-2 ${isPos ? 'border-emerald-500/50 hover:border-emerald-400' : 'border-rose-500/50 hover:border-rose-400'} shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-all relative overflow-hidden">
+      <div onclick="openIndexModal('${idx.name}')" title="${cardTitle}" class="stock-card-pop cursor-pointer select-none group flex flex-col justify-between p-3.5 rounded-2xl bg-gradient-to-br from-slate-900/95 via-[#0b1325] to-slate-950 border-2 ${isPos ? 'border-emerald-500/50 hover:border-emerald-400' : 'border-rose-500/50 hover:border-rose-400'} shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-all relative overflow-hidden">
         <!-- Top Neon Beam Accent -->
         <div class="absolute -top-1 left-1/2 -translate-x-1/2 w-28 h-1 ${isPos ? 'bg-gradient-to-r from-transparent via-emerald-400 to-transparent' : 'bg-gradient-to-r from-transparent via-rose-400 to-transparent'} blur-[2px]"></div>
 
         <div class="flex items-center justify-between">
           <span class="text-xs font-black text-white tracking-tight group-hover:text-cyan-300 transition-colors flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full ${isPos ? 'bg-emerald-400' : 'bg-rose-400'} pulse-indicator"></span>
+            ${liveBeaconHtml}
             ${idx.name}
           </span>
           <span class="text-[9px] font-bold text-cyan-300 bg-slate-950/80 border border-cyan-500/40 px-2 py-0.5 rounded-full font-mono tracking-wider">${isGift ? 'NSE IX (GIFT City)' : idx.exchange}</span>
@@ -1653,8 +1734,14 @@ function renderIndicesBar() {
         ${expiryHtml}
 
         <div class="mt-2.5 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 group-hover:text-cyan-300 transition-colors">
-          <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full ${isGift ? (getGiftNiftySessionStatusClient().isOpen ? 'bg-emerald-400 animate-ping' : 'bg-amber-400') : 'bg-emerald-400'}"></span> ${isGift ? 'Live NSE IX • 21-Hour Stream' : 'Live NSE'}</span>
-          <span class="font-extrabold text-cyan-400 group-hover:text-cyan-300 flex items-center gap-1">Angel One Graph ⚡ &gt;</span>
+          <span class="flex items-center gap-1.5">
+            <span class="relative flex h-2 w-2">
+              ${isLive ? '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>' : ''}
+              <span class="relative inline-flex rounded-full h-2 w-2 ${isLive ? 'bg-emerald-400' : 'bg-amber-400'}"></span>
+            </span>
+            <span class="${isLive ? 'text-emerald-300 font-semibold' : ''}">${footerText}</span>
+          </span>
+          <span class="font-extrabold ${actionColor} flex items-center gap-1">${actionText}</span>
         </div>
       </div>
     `;
@@ -2099,20 +2186,35 @@ function openIndexModal(indexName = 'NIFTY 50', timeframe = '1D') {
   if (lowEl) lowEl.innerText = idx.low ? `₹${idx.low.toLocaleString('en-IN')}` : '--';
 
   // External Action Links (Angel One & TradingView)
+  const isGift = idx.name === 'GIFT NIFTY' || idx.is_gift;
   const angelTitleEl = document.getElementById('index-angel-title');
-  if (angelTitleEl) angelTitleEl.innerText = `Angel One TradeOne • ${idx.name} Live Terminal`;
+  if (angelTitleEl) {
+    angelTitleEl.innerText = isGift 
+      ? 'TradingView NSE IX • GIFT NIFTY 50 Live Futures Terminal'
+      : `Angel One TradeOne • ${idx.name} Live Terminal`;
+  }
 
   const angelBtn = document.getElementById('index-angel-one-btn');
   if (angelBtn) {
-    angelBtn.href = 'https://www.angelone.in/trade/tradeone/chart';
-    angelBtn.innerHTML = `<span>🚀 Open ${idx.name} in Angel One Chart</span> <span class="text-xs">↗</span>`;
+    if (isGift) {
+      angelBtn.href = 'https://in.tradingview.com/symbols/NSEIX-NIFTY1!/';
+      angelBtn.innerHTML = `<span>⚡ Open GIFT NIFTY on TradingView</span> <span class="text-xs">↗</span>`;
+    } else {
+      angelBtn.href = 'https://www.angelone.in/trade/tradeone/chart';
+      angelBtn.innerHTML = `<span>🚀 Open ${idx.name} in Angel One Chart</span> <span class="text-xs">↗</span>`;
+    }
   }
 
   const tvBtn = document.getElementById('index-tradingview-direct-btn');
   if (tvBtn) {
-    const tvSym = formatTradingViewSymbol(idx.name);
-    tvBtn.href = `https://in.tradingview.com/chart/?symbol=${encodeURIComponent(tvSym)}`;
-    tvBtn.title = `Open ${idx.name} on TradingView`;
+    if (isGift) {
+      tvBtn.href = 'https://in.tradingview.com/symbols/NSEIX-NIFTY1!/';
+      tvBtn.title = 'Open GIFT NIFTY on TradingView';
+    } else {
+      const tvSym = formatTradingViewSymbol(idx.name);
+      tvBtn.href = `https://in.tradingview.com/chart/?symbol=${encodeURIComponent(tvSym)}`;
+      tvBtn.title = `Open ${idx.name} on TradingView`;
+    }
   }
 
   // Render Index Switcher Pills

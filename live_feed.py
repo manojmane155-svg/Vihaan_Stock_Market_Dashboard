@@ -338,23 +338,55 @@ def fetch_indices_data():
 
             is_gift = cfg.get('is_gift', False)
             if is_gift:
-                gift_basis = 167.40
-                p_val = round(float(price) + gift_basis, 2) if price is not None else 23220.50
-                fc = 167.40
-                rcp = 0.73
-                prev_val = round(p_val - fc, 2)
-                o_val = round(prev_val + 6.90, 2)
-                h_val = round(p_val + 27.50, 2)
-                l_val = round(prev_val - 43.10, 2)
+                tv_data = None
+                for ep in ['https://scanner.tradingview.com/futures/scan', 'https://scanner.tradingview.com/global/scan']:
+                    try:
+                        tv_req = urllib.request.Request(ep, data=json.dumps({
+                            'symbols': {'tickers': ['NSEIX:NIFTY1!'], 'query': {'types': []}},
+                            'columns': ['close', 'change', 'change_abs', 'open', 'high', 'low', 'volume', 'description']
+                        }).encode('utf-8'), headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Content-Type': 'application/json'})
+                        with urllib.request.urlopen(tv_req, timeout=4) as tv_resp:
+                            tv_json = json.loads(tv_resp.read().decode('utf-8'))
+                        row = tv_json.get('data', [])[0]['d']
+                        tv_data = {
+                            'close': round(float(row[0]), 2),
+                            'change_pct': round(float(row[1]), 2),
+                            'change_abs': round(float(row[2]), 2),
+                            'open': round(float(row[3]), 2),
+                            'high': round(float(row[4]), 2),
+                            'low': round(float(row[5]), 2)
+                        }
+                        break
+                    except Exception:
+                        pass
+
+                if tv_data:
+                    p_val = tv_data['close']
+                    fc = tv_data['change_abs']
+                    rcp = tv_data['change_pct']
+                    prev_val = round(p_val - fc, 2)
+                    o_val = tv_data['open']
+                    h_val = tv_data['high']
+                    l_val = tv_data['low']
+                else:
+                    gift_basis = 167.40
+                    p_val = round(float(price) + gift_basis, 2) if price is not None else 23220.50
+                    fc = 167.40
+                    rcp = 0.73
+                    prev_val = round(p_val - fc, 2)
+                    o_val = round(prev_val + 6.90, 2)
+                    h_val = round(p_val + 27.50, 2)
+                    l_val = round(prev_val - 43.10, 2)
+
                 final_intraday = []
                 for pt in intraday:
                     final_intraday.append({
                         'time': pt['time'],
                         'timestamp': pt['timestamp'],
-                        'open': round(pt['open'] + gift_basis, 2),
-                        'high': round(pt['high'] + gift_basis, 2),
-                        'low': round(pt['low'] + gift_basis, 2),
-                        'close': round(pt['close'] + gift_basis, 2)
+                        'open': round(pt['open'] + (p_val - float(price or p_val)), 2),
+                        'high': round(pt['high'] + (p_val - float(price or p_val)), 2),
+                        'low': round(pt['low'] + (p_val - float(price or p_val)), 2),
+                        'close': round(pt['close'] + (p_val - float(price or p_val)), 2)
                     })
             else:
                 p_val = round(float(price), 2) if price is not None else None
