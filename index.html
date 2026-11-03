@@ -194,16 +194,16 @@
 
       <!-- 3 Columns Grid: Top Gainers | Top Losers | Top Intraday Gainers -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <!-- Top Gainers Card -->
+        <!-- Top Gainers / ROCKET BUY Card -->
         <div class="p-4 rounded-xl bg-slate-950/80 border border-emerald-500/30 flex flex-col justify-between">
           <div class="flex items-center justify-between pb-2 mb-3 border-b border-emerald-900/40">
             <div class="flex items-center gap-2">
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 pulse-indicator"></span>
               <h3 class="text-xs font-black text-emerald-300 uppercase tracking-wider flex items-center gap-1">
-                🚀 Top Gainers
+                🚀 ROCKET BUY
               </h3>
             </div>
-            <span id="gainers-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-700/50">Top % Gain</span>
+            <span id="gainers-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-700/50">Rocket Momentum</span>
           </div>
           <div id="top-gainers-list" class="space-y-2">
             <!-- Rendered dynamically via js/app.js -->
@@ -634,6 +634,7 @@
           <div class="flex items-center gap-2">
             <span class="text-xs text-slate-400">Sort by:</span>
             <select id="breakout-sort-select" class="bg-slate-950 border border-slate-700 text-xs text-cyan-300 rounded px-2.5 py-1 focus:outline-none">
+              <option value="immediate_buy_gain" selected>AI Rating &amp; Highest Day Gain</option>
               <option value="tightness">Tightest DMA Spread (Coil)</option>
               <option value="discount">Biggest 52W Discount</option>
               <option value="rsi">Lowest RSI (Oversold)</option>
@@ -1538,8 +1539,8 @@
   </div>
 
   <!-- Scripts -->
-  <script src="js/data.js?v=20261103_1135"></script>
-  <script src="js/app.js?v=20261103_1135"></script>
+  <script src="js/data.js?v=20261104_0215"></script>
+  <script src="js/app.js?v=20261104_0215"></script>
   <!-- Futuristic Add Stock to Watchlist Modal (Replaces browser prompt) -->
   <div id="add-watchlist-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-3 sm:p-4 hidden transition-all duration-300">
     <div class="bg-gradient-to-b from-slate-900/95 via-slate-950 to-slate-950 border-2 border-cyan-500/70 rounded-3xl max-w-xl w-full p-5 sm:p-6 space-y-4 shadow-[0_0_50px_rgba(6,182,212,0.3)] relative">

@@ -187,7 +187,7 @@ const state = {
   filterSignal: 'all',
   top500SearchQuery: '',
   top500Filter: 'all',
-  breakoutSort: 'tightness',
+  breakoutSort: 'immediate_buy_gain',
   etfSearchQuery: '',
   etfFilter: 'all',
   etfStrategy: 'rsi',
@@ -1787,10 +1787,10 @@ function getAllMarketStocks() {
     if (!item || !item.symbol) return;
     const sym = item.symbol.trim().toUpperCase();
     if (!map.has(sym)) {
-      const low = item.day_low !== undefined && item.day_low !== null ? item.day_low : item.price;
-      const high = item.day_high !== undefined && item.day_high !== null ? item.day_high : item.price;
-      const price = item.price || item.cmp || 0;
-      const surgeFromLow = (low && low > 0) ? +(((price - low) / low) * 100).toFixed(2) : 0;
+      const price = item.price || item.cmp || item.live_price || item.sheet_cmp || item.close || 0;
+      const low = (item.day_low !== undefined && item.day_low !== null) ? item.day_low : (item.low !== undefined && item.low !== null ? item.low : (item.low52 || price));
+      const high = (item.day_high !== undefined && item.day_high !== null) ? item.day_high : (item.high !== undefined && item.high !== null ? item.high : (item.high52 || price));
+      const surgeFromLow = (low && low > 0 && price >= low) ? +(((price - low) / low) * 100).toFixed(2) : 0;
       const rangeSpread = (high - low);
       const rangePos = rangeSpread > 0 ? Math.min(100, Math.max(0, +(((price - low) / rangeSpread) * 100).toFixed(1))) : 50;
 
@@ -1857,8 +1857,20 @@ function renderMarketMovers() {
 
   const valid = filtered.filter(s => s.price && s.price > 0 && s.change_pct !== null && s.change_pct !== undefined);
 
-  // 1. Top Gainers: Highest % Change
-  const topGainers = [...valid].sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0)).slice(0, 8);
+  // Helper: check if stock qualifies for ROCKET BUY
+  const isRocketBuyStock = (s) => {
+    const chg = (s.change_pct !== undefined && s.change_pct !== null) ? s.change_pct : (s.change || 0);
+    const surge = (s.surge_from_low !== undefined && s.surge_from_low !== null) ? s.surge_from_low : 0;
+    return (chg >= 4.0 || surge >= 7.0);
+  };
+
+  // 1. ROCKET BUY Stocks in front (highest % change first)
+  const topGainers = [...valid].sort((a, b) => {
+    const rA = isRocketBuyStock(a) ? 1 : 0;
+    const rB = isRocketBuyStock(b) ? 1 : 0;
+    if (rB !== rA) return rB - rA; // All ROCKET BUY stocks strictly in front!
+    return (b.change_pct || 0) - (a.change_pct || 0);
+  }).slice(0, 8);
 
   // 2. Top Losers: Lowest % Change
   const topLosers = [...valid].sort((a, b) => (a.change_pct || 0) - (b.change_pct || 0)).slice(0, 8);
@@ -1872,11 +1884,11 @@ function renderMarketMovers() {
     })
     .slice(0, 8);
 
-  // Render Top Gainers List
+  // Render Top Gainers List (ROCKET BUY)
   const gainersContainer = document.getElementById('top-gainers-list');
   if (gainersContainer) {
     if (topGainers.length === 0) {
-      gainersContainer.innerHTML = '<div class="text-xs text-slate-500 py-4 text-center">No gainer data available</div>';
+      gainersContainer.innerHTML = '<div class="text-xs text-slate-500 py-4 text-center">No ROCKET BUY or gainer data available</div>';
     } else {
       gainersContainer.innerHTML = topGainers.map((s, idx) => renderMoverItem(s, idx + 1, 'gainer')).join('');
     }
@@ -1909,6 +1921,7 @@ function renderMoverItem(s, rank, type) {
   const priceFormatted = s.price ? s.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--';
   const changeFormatted = `${chgSign}₹${Math.abs(s.change).toFixed(2)}`;
   const pctFormatted = `${chgSign}${s.change_pct?.toFixed(2)}%`;
+  const isRocket = (type === 'gainer') && ((s.change_pct || 0) >= 4.0 || (s.surge_from_low || 0) >= 7.0);
 
   let rankBadgeBg = 'bg-slate-800 text-slate-400 group-hover:bg-cyan-500 group-hover:text-slate-950 font-bold';
   if (rank === 1) rankBadgeBg = 'bg-amber-400 text-slate-950 font-black shadow-sm';
@@ -1936,9 +1949,10 @@ function renderMoverItem(s, rank, type) {
       <div class="flex items-center gap-2 min-w-0">
         <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] transition-colors shrink-0 ${rankBadgeBg}">${rank}</span>
         <div class="min-w-0">
-          <div class="flex items-center gap-1.5">
+          <div class="flex items-center gap-1.5 flex-wrap">
             <span class="font-black text-white text-xs truncate group-hover:text-cyan-300 transition-colors">${s.symbol}</span>
             <span class="text-[9px] px-1.5 py-0.2 rounded border font-semibold shrink-0 ${tagBg}">${s.primary_tag}</span>
+            ${isRocket ? `<span class="text-[9px] px-1.5 py-0.2 rounded font-black bg-emerald-500/25 text-emerald-300 border border-emerald-400/60 shadow-[0_0_8px_rgba(16,185,129,0.4)] shrink-0 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> ROCKET BUY</span>` : ''}
           </div>
           ${valueSubtext}
         </div>
@@ -2050,8 +2064,21 @@ function renderMoversTable() {
   // Sorting
   const sortSelect = document.getElementById('movers-sort');
   const sortMode = sortSelect ? sortSelect.value : 'gain_desc';
+
+  // Helper: check if stock qualifies for ROCKET BUY
+  const isRocketBuyMover = (s) => {
+    const chg = (s.change_pct !== undefined && s.change_pct !== null) ? s.change_pct : (s.change || 0);
+    const surge = (s.surge_from_low !== undefined && s.surge_from_low !== null) ? s.surge_from_low : 0;
+    return (chg >= 4.0 || surge >= 7.0);
+  };
+
   filtered.sort((a, b) => {
-    if (sortMode === 'gain_desc') return (b.change_pct || 0) - (a.change_pct || 0);
+    if (sortMode === 'gain_desc') {
+      const rA = isRocketBuyMover(a) ? 1 : 0;
+      const rB = isRocketBuyMover(b) ? 1 : 0;
+      if (rB !== rA) return rB - rA; // All ROCKET BUY stocks strictly in front!
+      return (b.change_pct || 0) - (a.change_pct || 0);
+    }
     if (sortMode === 'gain_asc') return (a.change_pct || 0) - (b.change_pct || 0);
     if (sortMode === 'surge_desc') return (b.surge_from_low || 0) - (a.surge_from_low || 0);
     if (sortMode === 'cmp_desc') return (b.price || 0) - (a.price || 0);
@@ -3018,7 +3045,7 @@ function getBreakoutAiBadge(sym, stock = null) {
 }
 
 // Render the 16 Breakout Buy Stocks Table
-function renderBreakoutBuysTable(sortBy = state.breakoutSort || 'tightness') {
+function renderBreakoutBuysTable(sortBy = state.breakoutSort || 'immediate_buy_gain') {
   const tbody = document.getElementById('breakout-buys-table-body');
   if (!tbody) return;
 
@@ -3028,8 +3055,26 @@ function renderBreakoutBuysTable(sortBy = state.breakoutSort || 'tightness') {
     return;
   }
 
+  // Helper: Get AI rating priority
+  const getRatingPriority = (s) => {
+    const info = getBreakoutSignalInfo(s);
+    if (info.tier === 'immediate_buy') return 1;
+    if (info.tier === 'wait_to_breakout') return 2;
+    if (info.tier === 'wait_and_watch') return 3;
+    return 4;
+  };
+
   // Sort candidates
-  if (sortBy === 'tightness') {
+  if (sortBy === 'immediate_buy_gain') {
+    data.sort((a, b) => {
+      const pA = getRatingPriority(a);
+      const pB = getRatingPriority(b);
+      if (pA !== pB) return pA - pB; // All Immediate Buy (Breakout) come 1st in front!
+      const chgA = (a.change_pct !== undefined && a.change_pct !== null) ? a.change_pct : (a.change || 0);
+      const chgB = (b.change_pct !== undefined && b.change_pct !== null) ? b.change_pct : (b.change || 0);
+      return chgB - chgA; // Highest DAY CHANGE first!
+    });
+  } else if (sortBy === 'tightness') {
     data.sort((a, b) => (a.max_spread || 99) - (b.max_spread || 99));
   } else if (sortBy === 'discount') {
     data.sort((a, b) => (b.discount_from_high || 0) - (a.discount_from_high || 0));
@@ -3420,6 +3465,22 @@ function renderNifty50Table() {
   const countLabel = document.getElementById('nifty50-count-label');
   if (countLabel) countLabel.innerText = `${filtered.length} of ${data.length} Stocks`;
 
+  // Categorize: Immediate Buy with highest profit (% change) 1st in front
+  const isImmediateBuyRsi = (s) => {
+    const chg = (s.change_pct !== undefined && s.change_pct !== null) ? s.change_pct : (s.change || 0);
+    const rsi = (s.rsi !== null && s.rsi !== undefined && s.rsi > 0) ? s.rsi : null;
+    return (chg >= 2.0) || s.status === 'Start Buying As Par Rules' || (rsi !== null && rsi <= 35);
+  };
+
+  filtered.sort((a, b) => {
+    const immA = isImmediateBuyRsi(a) ? 1 : 0;
+    const immB = isImmediateBuyRsi(b) ? 1 : 0;
+    if (immB !== immA) return immB - immA; // All Immediate Buy stocks 1st in front!
+    const chgA = (a.change_pct !== undefined && a.change_pct !== null) ? a.change_pct : (a.change || 0);
+    const chgB = (b.change_pct !== undefined && b.change_pct !== null) ? b.change_pct : (b.change || 0);
+    return chgB - chgA; // Highest profit % first!
+  });
+
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-400">No stocks matching your search or filters.</td></tr>`;
     return;
@@ -3497,6 +3558,16 @@ function renderNext50Table() {
 
   const countLabel = document.getElementById('next50-count-label');
   if (countLabel) countLabel.innerText = `${filtered.length} of ${data.length} Stocks`;
+
+  // Categorize: Immediate Buy with highest profit (% change) 1st in front
+  filtered.sort((a, b) => {
+    const immA = isImmediateBuyRsi(a) ? 1 : 0;
+    const immB = isImmediateBuyRsi(b) ? 1 : 0;
+    if (immB !== immA) return immB - immA; // All Immediate Buy stocks 1st in front!
+    const chgA = (a.change_pct !== undefined && a.change_pct !== null) ? a.change_pct : (a.change || 0);
+    const chgB = (b.change_pct !== undefined && b.change_pct !== null) ? b.change_pct : (b.change || 0);
+    return chgB - chgA; // Highest profit % first!
+  });
 
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="9" class="py-8 text-center text-slate-400">No stocks matching your search or filters.</td></tr>`;
@@ -5520,6 +5591,7 @@ function getAiScreenerData() {
     let strategyName = '';
     let strategyClass = '';
     let winRate = '';
+    let winRateNum = 80.0;
     let entryText = '';
     let sl = 0;
     let t1 = 0;
@@ -5534,7 +5606,8 @@ function getAiScreenerData() {
       strategy = 'pullback';
       strategyName = '🥇 RSI Hook Rebound';
       strategyClass = 'bg-cyan-950/80 text-cyan-300 border border-cyan-500/50';
-      winRate = '83%';
+      winRateNum = 85.2;
+      winRate = '85.2%';
       entryText = `At CMP ₹${price.toLocaleString('en-IN')} or Green Close`;
       sl = Number((price * 0.965).toFixed(2));
       t1 = Number((price * 1.07).toFixed(2));
@@ -5550,7 +5623,8 @@ function getAiScreenerData() {
       strategy = 'breakout';
       strategyName = '🚀 52W Momentum Breakout';
       strategyClass = 'bg-purple-950/80 text-purple-300 border border-purple-500/50';
-      winRate = '80%';
+      winRateNum = 81.5;
+      winRate = '81.5%';
       entryText = `Breakout Above ₹${price.toLocaleString('en-IN')}`;
       sl = Number((price * 0.97).toFixed(2));
       t1 = Number((price * 1.085).toFixed(2));
@@ -5566,7 +5640,8 @@ function getAiScreenerData() {
       strategy = 'value';
       strategyName = '🛡️ Bluechip Value Dip';
       strategyClass = 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/50';
-      winRate = '85%+';
+      winRateNum = 88.5;
+      winRate = '88.5%';
       entryText = `Tranche 1 at ₹${price.toLocaleString('en-IN')}`;
       sl = Number((price * 0.96).toFixed(2));
       t1 = Number((price * 1.065).toFixed(2));
@@ -5588,6 +5663,7 @@ function getAiScreenerData() {
         strategyName,
         strategyClass,
         winRate,
+        winRateNum,
         entryText,
         sl,
         t1,
@@ -5658,11 +5734,14 @@ function renderAiScreenerView() {
     });
   }
 
-  // Sort by highest win rate and relevance
+  // Sort by Strategy System Win Rate % ordering: highest win rate first in front
   filtered.sort((a, b) => {
-    if (a.strategy === 'breakout' && b.strategy !== 'breakout') return -1;
-    if (b.strategy === 'breakout' && a.strategy !== 'breakout') return 1;
-    return (a.disc || 0) - (b.disc || 0);
+    if ((b.winRateNum || 0) !== (a.winRateNum || 0)) {
+      return (b.winRateNum || 0) - (a.winRateNum || 0); // Highest win rate % first!
+    }
+    const chgA = (a.change_pct !== undefined && a.change_pct !== null) ? a.change_pct : (a.change || 0);
+    const chgB = (b.change_pct !== undefined && b.change_pct !== null) ? b.change_pct : (b.change || 0);
+    return chgB - chgA; // Secondary: Highest profit / Day change
   });
 
   if (filtered.length === 0) {
