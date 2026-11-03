@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     hour12: true
   });
 
-  // Calculate market state (IST 9:15 AM to 3:30 PM, Monday-Friday)
+  // Calculate market state (IST 8:45 AM to 3:30 PM, Monday-Friday covering Block Deal, Pre-Open & Regular Sessions)
   const istFormatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Kolkata',
     weekday: 'short',
@@ -33,7 +33,7 @@ export default async function handler(req, res) {
   const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
   const timeInMinutes = hour * 60 + minute;
   const isWeekday = !['Sat', 'Sun'].includes(weekday);
-  const isMarketOpen = isWeekday && (timeInMinutes >= (9 * 60 + 15)) && (timeInMinutes <= (15 * 60 + 30));
+  const isMarketOpen = isWeekday && (timeInMinutes >= (8 * 60 + 45)) && (timeInMinutes <= (15 * 60 + 30));
 
   const elapsed = Math.round((Date.now() - t0) / 10) / 100;
 
@@ -41,14 +41,14 @@ export default async function handler(req, res) {
     status: 'success',
     timestamp: timeStr,
     is_market_open: isMarketOpen,
-    market_hours: '9:15 AM - 3:30 PM IST',
+    market_hours: '8:45 AM - 3:30 PM IST (Block Deal, Pre-Open & Regular Sessions)',
     elapsed_seconds: elapsed,
     nifty50_count: 50,
     next50_count: 50,
     indices_count: 6,
     breakout_buys_count: 16,
     message: isMarketOpen 
-      ? 'Live NSE/BSE Market Data Synced Successfully'
-      : 'Market Closed (Operating Hours: 9:15 AM - 3:30 PM IST)'
+      ? 'Live NSE/BSE Market Data Synced Successfully (8:45 AM - 3:30 PM IST)'
+      : 'Market Closed (Operating Hours: 8:45 AM - 3:30 PM IST)'
   });
 }

@@ -301,24 +301,67 @@ function renderAllViews() {
   updateStatusDisplay();
 }
 
-// Helper: Check if Indian Cash Stock Market is currently Open (Mon-Fri, 9:15 AM - 3:30 PM IST)
-function isIndianMarketOpen() {
+// Helper: Detailed Indian Stock Market Session Tracker (Mon-Fri, 08:45 AM - 03:30 PM IST)
+// Timetable includes Block Deal Session 1 (8:45-9:00), Pre-Open (9:00-9:15), Regular & T+0 (9:15-15:30)
+function getIndianMarketSessionDetails() {
   try {
     const now = new Date();
     const istTimeStr = now.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit' });
     const parts = istTimeStr.split(':');
     const h = parseInt(parts[0], 10);
     const m = parseInt(parts[1], 10);
-    const timeInMinutes = h * 60 + m;
+    const totalMinutes = h * 60 + m;
 
     const dayFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', weekday: 'short' });
     const weekday = dayFormatter.format(now);
     const isWeekday = !['Sat', 'Sun'].includes(weekday);
 
-    return isWeekday && (timeInMinutes >= (9 * 60 + 15)) && (timeInMinutes <= (15 * 60 + 30));
+    // Active Indian Market Window: 08:45 AM (525 min) to 03:30 PM (930 min) IST
+    const isOpen = isWeekday && (totalMinutes >= 525 && totalMinutes <= 930);
+    let phase = 'Indian Market Active Trading';
+    let phaseBadge = 'Live Market';
+
+    if (!isWeekday) {
+      phase = 'Weekend Closed';
+      phaseBadge = 'Closed (Weekend)';
+    } else if (totalMinutes < 525) {
+      phase = 'Pre-Market / Asian Trading';
+      phaseBadge = 'Opens 08:45 AM';
+    } else if (totalMinutes >= 525 && totalMinutes < 540) {
+      phase = 'Block Deal Session 1 (08:45 - 09:00 AM)';
+      phaseBadge = 'Block Deal 1 Live';
+    } else if (totalMinutes >= 540 && totalMinutes < 548) {
+      phase = 'Pre-Open Order Entry (09:00 - 09:08 AM)';
+      phaseBadge = 'Pre-Open Live';
+    } else if (totalMinutes >= 548 && totalMinutes < 555) {
+      phase = 'Pre-Open Price Discovery (09:08 - 09:15 AM)';
+      phaseBadge = 'Price Discovery';
+    } else if (totalMinutes >= 555 && totalMinutes < 810) {
+      phase = 'Normal Cash Trading (09:15 AM - 01:30 PM)';
+      phaseBadge = 'Cash Market Live';
+    } else if (totalMinutes >= 810 && totalMinutes < 845) {
+      phase = 'T+0 & Normal Trading (01:30 - 02:05 PM)';
+      phaseBadge = 'T+0 & Normal Live';
+    } else if (totalMinutes >= 845 && totalMinutes < 860) {
+      phase = 'Block Deal Session 2 (02:05 - 02:20 PM)';
+      phaseBadge = 'Block Deal 2 Live';
+    } else if (totalMinutes >= 860 && totalMinutes <= 930) {
+      phase = 'Closing Session (02:20 - 03:30 PM)';
+      phaseBadge = 'Closing Session Live';
+    } else {
+      phase = 'Post-Market Closed';
+      phaseBadge = 'Market Closed';
+    }
+
+    return { isOpen, phase, phaseBadge, totalMinutes, isWeekday };
   } catch (e) {
-    return false;
+    return { isOpen: true, phase: 'Indian Market Active Trading', phaseBadge: 'Live', totalMinutes: 600, isWeekday: true };
   }
+}
+
+// Helper: Check if Indian Cash Stock Market is currently Open (Mon-Fri, 08:45 AM - 03:30 PM IST)
+function isIndianMarketOpen() {
+  return getIndianMarketSessionDetails().isOpen;
 }
 
 // Helper: Check GIFT NIFTY Session Status on NSE IX (21-Hour Trading Schedule)
@@ -351,8 +394,9 @@ function getGiftNiftySessionStatusClient() {
     // Session 1: 06:30 to 23:30 IST (390 to 1410 min)
     if (totalMinutes >= 390 && totalMinutes < 1410) {
       let sub = '6:30 AM – 11:30 PM IST';
-      if (totalMinutes < 555) sub = 'Asian Pre-Market (6:30 - 9:15 AM)';
-      else if (totalMinutes >= 930 && totalMinutes < 1200) sub = 'European Session (3:30 - 8:00 PM)';
+      if (totalMinutes < 525) sub = 'Asian Pre-Market (6:30 - 8:45 AM)';
+      else if (totalMinutes >= 525 && totalMinutes <= 930) sub = 'Indian Market Active Trading (8:45 AM - 3:30 PM)';
+      else if (totalMinutes > 930 && totalMinutes < 1200) sub = 'European Session (3:30 - 8:00 PM)';
       else if (totalMinutes >= 1200) sub = 'US Pre-Market (8:00 - 11:30 PM)';
       return {
         isOpen: true,
@@ -389,6 +433,7 @@ function updateStatusDisplay() {
   const timeEl = document.getElementById('header-last-updated');
   const statusEl = document.getElementById('upload-status');
   const countdownEl = document.getElementById('refresh-countdown');
+  const pillEl = document.getElementById('market-status-pill');
 
   const timestamp = state.lastUpdated || (window.NIFTY_50_DATA && NIFTY_50_DATA[0]?.last_updated);
   const timeDisplay = timestamp ? format12HrTime(timestamp) : 'Live';
@@ -396,6 +441,22 @@ function updateStatusDisplay() {
   if (timeEl) {
     timeEl.innerText = `Updated: ${timeDisplay}`;
     timeEl.title = `Last Live Sync: ${timestamp || 'Active'}`;
+  }
+
+  const marketSession = getIndianMarketSessionDetails();
+  const giftSession = getGiftNiftySessionStatusClient();
+
+  if (pillEl) {
+    if (marketSession.isOpen) {
+      pillEl.innerText = `Live Market (8:45 AM - 3:30 PM IST)`;
+      pillEl.className = 'text-emerald-400 font-bold tracking-wide uppercase text-[11px]';
+    } else if (giftSession.isOpen) {
+      pillEl.innerText = `GIFT NIFTY LIVE (NSE IX)`;
+      pillEl.className = 'text-cyan-300 font-bold tracking-wide uppercase text-[11px]';
+    } else {
+      pillEl.innerText = `Market Closed`;
+      pillEl.className = 'text-amber-400 font-semibold tracking-wide uppercase text-[11px]';
+    }
   }
 
   // Format countdown mm:ss
@@ -410,16 +471,14 @@ function updateStatusDisplay() {
   }
 
   if (statusEl) {
-    const marketOpen = isIndianMarketOpen();
-    const giftSession = getGiftNiftySessionStatusClient();
-    if (marketOpen) {
+    if (marketSession.isOpen) {
       statusEl.innerHTML = `
         <span class="inline-flex items-center gap-1.5 text-emerald-400 font-bold">
           <span class="relative flex h-2 w-2">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
-          <span>⚡ Indian Cash Market LIVE (9:15 AM - 3:30 PM IST) &bull; Synced at ${timeDisplay}</span>
+          <span>⚡ Indian Market LIVE (08:45 AM - 03:30 PM IST &bull; ${marketSession.phase}) &bull; Synced at ${timeDisplay}</span>
         </span>
       `;
     } else if (giftSession.isOpen) {
@@ -609,13 +668,21 @@ async function streamLiveQuotesForActiveView() {
 
     // 6. Active Tab Specific Priority Symbols (e.g. visible Top 500 or ETF Shop)
     if (state.currentTab === 'top500') {
-      const topSlice = (window.TOP_500_STOCKS_DATA || []).slice(0, 40);
-      topSlice.forEach(s => {
+      const q = (state.top500SearchQuery || '').toLowerCase().trim();
+      const filt = state.top500Filter || 'all';
+      const visible = (window.TOP_500_STOCKS_DATA || []).filter(s => {
+        const matches = !q || (s.code && s.code.toLowerCase().includes(q)) || (s.symbol && s.symbol.toLowerCase().includes(q));
+        if (!matches) return false;
+        if (filt === 'buy') return s.output === 'Best Time for Buy';
+        if (filt === 'avoid') return s.output === 'Avoid';
+        return true;
+      }).slice(0, 50);
+      visible.forEach(s => {
         const sym = (s.symbol || s.code?.replace('NSE:', '') || '').toUpperCase();
         if (sym) symbolsSet.add(sym);
       });
     } else if (state.currentTab === 'etf_shop') {
-      (window.ETF_DATA || []).slice(0, 30).forEach(e => {
+      (window.ETF_DATA || []).forEach(e => {
         const sym = (e.symbol || e.ticker || '').toUpperCase();
         if (sym) symbolsSet.add(sym);
       });
@@ -650,18 +717,29 @@ async function streamLiveQuotesForActiveView() {
   }
 }
 
-// Continuous Live Quote Streaming Scheduler (Runs every 15s during market hours)
-let liveStreamingIntervalId = null;
+// Continuous Live Quote Streaming Scheduler (Zero-delay loop: 5s during Indian Market hours 08:45 AM - 03:30 PM IST)
+let liveStreamingTimeoutId = null;
+let isStreamCycleRunning = false;
 function startLiveQuoteStreaming() {
-  if (liveStreamingIntervalId) clearInterval(liveStreamingIntervalId);
+  if (liveStreamingTimeoutId) clearTimeout(liveStreamingTimeoutId);
 
-  // Immediate initial stream
-  streamLiveQuotesForActiveView();
+  const runStreamCycle = async () => {
+    if (isStreamCycleRunning) return;
+    isStreamCycleRunning = true;
+    try {
+      await streamLiveQuotesForActiveView();
+    } catch (e) {
+      console.warn('[StreamCycle] Non-fatal tick error:', e.message);
+    } finally {
+      isStreamCycleRunning = false;
+      // Zero delay: 5 seconds during active Indian market hours (08:45 AM - 03:30 PM IST), 15 seconds otherwise
+      const delay = isIndianMarketOpen() ? 5000 : 15000;
+      liveStreamingTimeoutId = setTimeout(runStreamCycle, delay);
+    }
+  };
 
-  // Continuous auto-streaming every 15 seconds during live market hours, or 30s during GIFT NIFTY / off-hours
-  liveStreamingIntervalId = setInterval(() => {
-    streamLiveQuotesForActiveView();
-  }, 15000);
+  // Immediate kick-off
+  runStreamCycle();
 }
 
 // 1. Fetch Live Stock Data from Server API

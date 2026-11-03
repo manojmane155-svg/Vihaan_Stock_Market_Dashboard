@@ -46,9 +46,10 @@ function getGiftNiftySession(dateObj = new Date()) {
 
   // 06:30 to 23:30 (390 to 1410 min): Session 1 (17 hours)
   if (totalMinutes >= 390 && totalMinutes < 1410) {
-    let phase = 'Indian Cash Overlap (9:15 AM - 3:30 PM)';
-    if (totalMinutes < 555) phase = 'Asian Pre-Market Window (6:30 AM - 9:15 AM)';
-    else if (totalMinutes >= 930 && totalMinutes < 1200) phase = 'Post-India European Session (3:30 PM - 8:00 PM)';
+    let phase = 'Indian Market Active Trading (8:45 AM - 3:30 PM IST)';
+    if (totalMinutes < 525) phase = 'Asian Pre-Market Window (6:30 AM - 8:45 AM)';
+    else if (totalMinutes >= 525 && totalMinutes <= 930) phase = 'Indian Market Active Trading (8:45 AM - 3:30 PM IST)';
+    else if (totalMinutes > 930 && totalMinutes < 1200) phase = 'Post-India European Session (3:30 PM - 8:00 PM)';
     else if (totalMinutes >= 1200) phase = 'US Pre-Market & Open (8:00 PM - 11:30 PM)';
     return {
       isOpen: true,
