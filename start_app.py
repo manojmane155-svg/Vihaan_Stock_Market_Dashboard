@@ -623,8 +623,8 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
                         return s, None
 
                 from concurrent.futures import ThreadPoolExecutor, as_completed
-                with ThreadPoolExecutor(max_workers=10) as ex:
-                    futures = [ex.submit(_fetch_one_quote, s) for s in sym_list[:25]]
+                with ThreadPoolExecutor(max_workers=25) as ex:
+                    futures = [ex.submit(_fetch_one_quote, s) for s in sym_list[:60]]
                     for f in as_completed(futures):
                         sym, qdata = f.result()
                         if qdata:

@@ -271,13 +271,13 @@ async function initApp() {
   try { initSearchAndFilters(); } catch (e) { console.error('initSearchAndFilters error:', e); }
   try { initCountdownTimer(); } catch (e) { console.error('initCountdownTimer error:', e); }
 
-  // Immediately pull fresh live stream data from backend API
+  // Immediately pull fresh live stream data from backend API and start 15s auto-streaming
   try {
     await fetchLiveStocksData(false);
-    streamLiveQuotesForActiveView();
   } catch (e) {
     console.error('fetchLiveStocksData error:', e);
   }
+  startLiveQuoteStreaming();
 }
 
 if (document.readyState === 'loading') {
@@ -443,7 +443,7 @@ function updateStatusDisplay() {
   }
 }
 
-// Apply Live Quotes Stream to In-Memory Datasets
+// Apply Live Quotes Stream to In-Memory Datasets across ALL Tabs
 function applyLiveQuotesUpdate(quotes) {
   if (!quotes || Object.keys(quotes).length === 0) return;
 
@@ -499,12 +499,26 @@ function applyLiveQuotesUpdate(quotes) {
     }
   });
 
-  // 2. Update Stocks across Nifty 50, Next 50, and Breakout Buys
+  // 2. Update Stocks across Nifty 50, Next 50, Breakout Buys, and Extra Constituents
   (window.NIFTY_50_DATA || []).forEach(updateStockItem);
   (window.NIFTY_NEXT_50_DATA || []).forEach(updateStockItem);
   (window.BREAKOUT_BUYS_DATA || []).forEach(updateStockItem);
+  (window.EXTRA_CONSTITUENTS_DATA || []).forEach(updateStockItem);
 
-  // 3. Update Top 500 Stocks Active Trading Data
+  // 3. Update ETFs
+  (window.ETF_DATA || []).forEach(etf => {
+    if (!etf) return;
+    const q = quotes[etf.symbol] || quotes[etf.ticker];
+    if (q && q.price > 0 && Math.abs(q.price - (etf.price || 0)) > 0.001) {
+      etf.price = q.price;
+      etf.live_price = q.price;
+      etf.change = q.change;
+      etf.change_pct = q.change_pct;
+      hasChanges = true;
+    }
+  });
+
+  // 4. Update Top 500 Stocks Active Trading Data
   (window.TOP_500_STOCKS_DATA || []).forEach(s => {
     if (!s) return;
     const sym = (s.symbol || s.code?.replace('NSE:', '') || '').toUpperCase();
@@ -528,6 +542,19 @@ function applyLiveQuotesUpdate(quotes) {
     }
   });
 
+  // 5. Update Calculation History for Detailed Views
+  Object.keys(quotes).forEach(sym => {
+    const q = quotes[sym];
+    if (!q || !q.price) return;
+    const list = (window.CALC_NIFTY_50 && window.CALC_NIFTY_50[sym]) || (window.CALC_NIFTY_NEXT_50 && window.CALC_NIFTY_NEXT_50[sym]);
+    if (list && list.length > 0) {
+      list[0].close = q.price;
+      if (q.day_high) list[0].high = Math.max(list[0].high || 0, q.day_high);
+      if (q.day_low) list[0].low = Math.min(list[0].low || q.price, q.day_low);
+      if (q.change !== undefined) list[0].change = q.change;
+    }
+  });
+
   if (hasChanges) {
     const now = new Date();
     state.lastUpdated = now.toLocaleTimeString('en-US', {
@@ -545,11 +572,16 @@ function applyLiveQuotesUpdate(quotes) {
     else if (state.currentTab === 'next50') renderNext50Table();
     else if (state.currentTab === 'top500') renderTop500Table();
     else if (state.currentTab === 'ai_screener') renderAiScreenerView();
+    else if (state.currentTab === 'etf_shop') renderEtfShopView();
+    else if (state.currentTab === 'nifty50_calc' || state.currentTab === 'next50_calc') {
+      renderCalculationView(state.currentTab === 'nifty50_calc' ? 'nifty50' : 'next50');
+    }
+    renderKPIs();
     updateStatusDisplay();
   }
 }
 
-// Background Live Quote Streamer for Currently Active View & Watchlist
+// Background Live Quote Streamer for ALL Stocks Across ALL Tabs
 let isStreamingQuotes = false;
 async function streamLiveQuotesForActiveView() {
   if (isStreamingQuotes) return;
@@ -558,42 +590,78 @@ async function streamLiveQuotesForActiveView() {
   try {
     const symbolsSet = new Set(['^NSEI', '^GIFTNIFTY', 'GIFT NIFTY', '^NSEBANK', '^BSESN', '^CNXIT', '^INDIAVIX']);
 
-    if (state.currentTab === 'breakout_buys') {
-      (window.BREAKOUT_BUYS_DATA || []).slice(0, 16).forEach(s => s.symbol && symbolsSet.add(s.symbol));
-    } else if (state.currentTab === 'nifty50') {
-      (window.NIFTY_50_DATA || []).slice(0, 25).forEach(s => s.symbol && symbolsSet.add(s.symbol));
-    } else if (state.currentTab === 'next50') {
-      (window.NIFTY_NEXT_50_DATA || []).slice(0, 25).forEach(s => s.symbol && symbolsSet.add(s.symbol));
-    } else if (state.currentTab === 'top500') {
-      (window.TOP_500_STOCKS_DATA || []).slice(0, 30).forEach(s => s.symbol && symbolsSet.add(s.symbol));
-    } else if (state.currentTab === 'ai_screener') {
-      ['TATAMOTORS', 'HDFCBANK', 'RELIANCE', 'SBICARD', 'TCS', 'INFY', 'ICICIBANK', 'AXISBANK', 'KOTAKBANK', 'LT', 'BAJFINANCE', 'BHARTIARTL', 'MARUTI', 'COALINDIA', 'ULTRACEMCO', 'NESTLEIND'].forEach(s => symbolsSet.add(s));
+    // 1. ALL NIFTY 50 Stocks (50 Stocks, including SHRIRAMFIN)
+    (window.NIFTY_50_DATA || []).forEach(s => s.symbol && symbolsSet.add(s.symbol.toUpperCase()));
+
+    // 2. ALL NIFTY NEXT 50 Stocks (50 Stocks)
+    (window.NIFTY_NEXT_50_DATA || []).forEach(s => s.symbol && symbolsSet.add(s.symbol.toUpperCase()));
+
+    // 3. ALL Breakout Buys (16 Stocks)
+    (window.BREAKOUT_BUYS_DATA || []).forEach(s => s.symbol && symbolsSet.add(s.symbol.toUpperCase()));
+
+    // 4. Extra Constituents for Bank Nifty / IT
+    (window.EXTRA_CONSTITUENTS_DATA || []).forEach(s => s.symbol && symbolsSet.add(s.symbol.toUpperCase()));
+
+    // 5. Watchlist Symbols
+    if (typeof getWatchlistSymbols === 'function') {
+      getWatchlistSymbols().forEach(s => symbolsSet.add(s.toUpperCase()));
     }
 
-    // Always include watchlist symbols
-    if (typeof getWatchlistSymbols === 'function') {
-      getWatchlistSymbols().forEach(s => symbolsSet.add(s));
+    // 6. Active Tab Specific Priority Symbols (e.g. visible Top 500 or ETF Shop)
+    if (state.currentTab === 'top500') {
+      const topSlice = (window.TOP_500_STOCKS_DATA || []).slice(0, 40);
+      topSlice.forEach(s => {
+        const sym = (s.symbol || s.code?.replace('NSE:', '') || '').toUpperCase();
+        if (sym) symbolsSet.add(sym);
+      });
+    } else if (state.currentTab === 'etf_shop') {
+      (window.ETF_DATA || []).slice(0, 30).forEach(e => {
+        const sym = (e.symbol || e.ticker || '').toUpperCase();
+        if (sym) symbolsSet.add(sym);
+      });
     }
 
     const symArray = Array.from(symbolsSet);
     if (symArray.length === 0) return;
 
-    const chunkSize = 20;
+    // Send parallel batches of up to 30 symbols for sub-second responses
+    const chunkSize = 30;
+    const batchPromises = [];
     for (let i = 0; i < symArray.length; i += chunkSize) {
       const chunk = symArray.slice(i, i + chunkSize);
       const url = `${API_BASE}/api/live_quotes?symbols=${encodeURIComponent(chunk.join(','))}&_t=${Date.now()}`;
-      const res = await fetch(url, { cache: 'no-store' });
-      if (!res.ok) continue;
-      const json = await res.json();
-      if (!json || !json.quotes) continue;
-
-      applyLiveQuotesUpdate(json.quotes);
+      batchPromises.push(
+        fetch(url, { cache: 'no-store' })
+          .then(res => res.ok ? res.json() : null)
+          .then(json => {
+            if (json && json.quotes) {
+              applyLiveQuotesUpdate(json.quotes);
+            }
+          })
+          .catch(err => console.warn('[StreamQuotesBatch] Error:', err.message))
+      );
     }
+
+    await Promise.all(batchPromises);
   } catch (err) {
     console.warn('[StreamLiveQuotes] Warning:', err.message);
   } finally {
     isStreamingQuotes = false;
   }
+}
+
+// Continuous Live Quote Streaming Scheduler (Runs every 15s during market hours)
+let liveStreamingIntervalId = null;
+function startLiveQuoteStreaming() {
+  if (liveStreamingIntervalId) clearInterval(liveStreamingIntervalId);
+
+  // Immediate initial stream
+  streamLiveQuotesForActiveView();
+
+  // Continuous auto-streaming every 15 seconds during live market hours, or 30s during GIFT NIFTY / off-hours
+  liveStreamingIntervalId = setInterval(() => {
+    streamLiveQuotesForActiveView();
+  }, 15000);
 }
 
 // 1. Fetch Live Stock Data from Server API

@@ -125,8 +125,8 @@ export default async function handler(req, res) {
     return res.status(200).json({ status: 'success', quotes: {} });
   }
 
-  // Cap to 25 symbols per request to ensure sub-second response time
-  const limitedSymbols = symList.slice(0, 25);
+  // Cap to 60 symbols per request to ensure fast parallel execution
+  const limitedSymbols = symList.slice(0, 60);
   const results = {};
 
   try {

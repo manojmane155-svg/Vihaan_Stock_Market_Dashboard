@@ -558,15 +558,41 @@ def fetch_all_live_market_data(max_workers=10):
     # 4. Pull 75 Curated ETFs (ETF Shop)
     etfs = fetch_etf_live_data(base_dir)
 
-    # 5. Load Top 500
+    # 5. Load Top 500 and synchronize with latest live prices
     top500 = []
     top500_file = os.path.join(base_dir, 'top_500_stocks.json')
     if os.path.exists(top500_file):
         try:
             with open(top500_file, 'r', encoding='utf-8') as f:
                 top500 = json.load(f)
-        except Exception:
-            pass
+
+            live_map = {s['symbol']: s for s in nifty50_data + next50_data + extra_data + breakout_buys if s.get('symbol')}
+            updated_any = False
+            for s in top500:
+                sym = s.get('symbol')
+                if sym in live_map:
+                    l = live_map[sym]
+                    p = l.get('price') or l.get('live_price')
+                    if p:
+                        s['cmp'] = p
+                        s['change'] = l.get('change', s.get('change', 0))
+                        s['change_pct'] = l.get('change_pct', s.get('change_pct', 0))
+                        if l.get('day_high'): s['high52'] = max(s.get('high52', 0) or 0, l['day_high'])
+                        if l.get('day_low') and s.get('low52'): s['low52'] = min(s['low52'], l['day_low'])
+                        if s.get('dma20') and s.get('dma50'):
+                            if s['cmp'] >= s['dma20'] and s['cmp'] >= s['dma50'] and (s.get('change_pct', 0) >= 0 or s['cmp'] >= (s.get('dma5') or 0)):
+                                s['output'] = 'Best Time for Buy'
+                            elif s['cmp'] < s['dma20'] and s['cmp'] < s['dma50']:
+                                s['output'] = 'Avoid'
+                        updated_any = True
+            if updated_any:
+                try:
+                    with open(top500_file, 'w', encoding='utf-8') as f:
+                        json.dump(top500, f, indent=2, ensure_ascii=False)
+                except Exception:
+                    pass
+        except Exception as e:
+            print("Top500 sync error:", e)
 
     elapsed = round(time.time() - start_time, 2)
     print(f"[{datetime.now().strftime('%H:%M:%S')}] Completed in {elapsed}s! N50: {len(nifty50_data)}/{len(NIFTY_50_SYMBOLS)}, Next50: {len(next50_data)}/{len(NIFTY_NEXT_50_SYMBOLS)}, Indices: {len(indices_data)}, Buys: {len(breakout_buys)}, ETFs: {len(etfs)}. Errors: {len(errors)}")
