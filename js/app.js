@@ -519,6 +519,7 @@ function applyLiveQuotesUpdate(quotes) {
         item.change_pct = q.change_pct;
         if (q.day_high) item.day_high = q.day_high;
         if (q.day_low) item.day_low = q.day_low;
+        if (q.company_name) item.company_name = q.company_name;
         if (item.high52 && item.high52 > 0) {
           item.discount_from_high = Math.round(((item.high52 - item.price) / item.high52) * 10000) / 100;
         }
@@ -588,10 +589,18 @@ function applyLiveQuotesUpdate(quotes) {
     if (q && q.price > 0) {
       if (Math.abs(q.price - (s.cmp || 0)) > 0.001) {
         s.cmp = q.price;
+        s.price = q.price;
         s.change = q.change;
         s.change_pct = q.change_pct;
+        if (q.company_name) s.company_name = q.company_name;
         if (q.day_high) s.high52 = Math.max(s.high52 || 0, q.day_high);
         if (q.day_low && s.low52) s.low52 = Math.min(s.low52, q.day_low);
+        if (s.high52 && s.high52 > 0) {
+          s.discount_from_high = Math.round(((s.high52 - q.price) / s.high52) * 10000) / 100;
+        }
+        if (s.low52 && s.low52 > 0) {
+          s.buffer_from_low = Math.round(((q.price - s.low52) / s.low52) * 10000) / 100;
+        }
         if (s.dma20 && s.dma50) {
           if (s.cmp >= s.dma20 && s.cmp >= s.dma50 && (q.change_pct >= 0 || s.cmp >= (s.dma5 || 0))) {
             s.output = 'Best Time for Buy';
@@ -650,12 +659,12 @@ async function streamLiveQuotesForActiveView() {
   isStreamingQuotes = true;
 
   try {
-    const symbolsSet = new Set(['^NSEI', '^GIFTNIFTY', 'GIFT NIFTY', '^NSEBANK', '^BSESN', '^CNXIT', '^INDIAVIX']);
+    const symbolsSet = new Set(['^NSEI', '^GIFTNIFTY', 'GIFT NIFTY', '^NSEBANK', '^BSESN', '^CNXIT', '^INDIAVIX', 'BEL', 'BHEL', 'SHRIRAMFIN']);
 
     // 1. ALL NIFTY 50 Stocks (50 Stocks, including SHRIRAMFIN)
     (window.NIFTY_50_DATA || []).forEach(s => s.symbol && symbolsSet.add(s.symbol.toUpperCase()));
 
-    // 2. ALL NIFTY NEXT 50 Stocks (50 Stocks)
+    // 2. ALL NIFTY NEXT 50 Stocks (50 Stocks, including BEL)
     (window.NIFTY_NEXT_50_DATA || []).forEach(s => s.symbol && symbolsSet.add(s.symbol.toUpperCase()));
 
     // 3. ALL Breakout Buys (16 Stocks)
@@ -674,12 +683,12 @@ async function streamLiveQuotesForActiveView() {
       const q = (state.top500SearchQuery || '').toLowerCase().trim();
       const filt = state.top500Filter || 'all';
       const visible = (window.TOP_500_STOCKS_DATA || []).filter(s => {
-        const matches = !q || (s.code && s.code.toLowerCase().includes(q)) || (s.symbol && s.symbol.toLowerCase().includes(q));
+        const matches = !q || (s.code && s.code.toLowerCase().includes(q)) || (s.symbol && s.symbol.toLowerCase().includes(q)) || (s.company_name && s.company_name.toLowerCase().includes(q));
         if (!matches) return false;
         if (filt === 'buy') return s.output === 'Best Time for Buy';
         if (filt === 'avoid') return s.output === 'Avoid';
         return true;
-      }).slice(0, 50);
+      }).slice(0, 80);
       visible.forEach(s => {
         const sym = (s.symbol || s.code?.replace('NSE:', '') || '').toUpperCase();
         if (sym) symbolsSet.add(sym);
@@ -694,22 +703,98 @@ async function streamLiveQuotesForActiveView() {
     const symArray = Array.from(symbolsSet);
     if (symArray.length === 0) return;
 
-    // Send parallel batches of up to 30 symbols for sub-second responses
-    const chunkSize = 30;
+    // Helper: Map Symbol to TradingView Ticker
+    const tvSymbolMap = {
+      'NIFTY': 'NSE:NIFTY', 'NIFTY 50': 'NSE:NIFTY', '^NSEI': 'NSE:NIFTY',
+      'BANK NIFTY': 'NSE:BANKNIFTY', '^NSEBANK': 'NSE:BANKNIFTY',
+      'SENSEX': 'BSE:SENSEX', '^BSESN': 'BSE:SENSEX',
+      'NIFTY IT': 'NSE:CNXIT', '^CNXIT': 'NSE:CNXIT',
+      'INDIA VIX': 'NSE:INDIAVIX', '^INDIAVIX': 'NSE:INDIAVIX',
+      'M&M': 'BSE:M_M', 'BAJAJ-AUTO': 'NSE:BAJAJ_AUTO',
+      'TATAMOTORS': 'NSE:TMPV', 'LTIM': 'NSE:LTM', 'ZOMATO': 'NSE:ETERNAL',
+      'BEL': 'NSE:BEL', 'BHEL': 'NSE:BHEL', 'SHRIRAMFIN': 'NSE:SHRIRAMFIN'
+    };
+    const toTvTicker = (sym) => {
+      const clean = (sym || '').trim().toUpperCase();
+      if (tvSymbolMap[clean]) return tvSymbolMap[clean];
+      if (clean === 'GIFT NIFTY' || clean === '^GIFTNIFTY' || clean === 'GIFT') return null;
+      if (clean.startsWith('^') || clean.includes(':')) return null;
+      return `NSE:${clean}`;
+    };
+
+    // Direct Browser Calls to TradingView India Scanner (CORS enabled, sub-second responses)
+    const chunkSize = 80;
     const batchPromises = [];
     for (let i = 0; i < symArray.length; i += chunkSize) {
       const chunk = symArray.slice(i, i + chunkSize);
-      const url = `${API_BASE}/api/live_quotes?symbols=${encodeURIComponent(chunk.join(','))}&_t=${Date.now()}`;
-      batchPromises.push(
-        fetch(url, { cache: 'no-store' })
+      const symbolLookup = {};
+      const tvTickers = [];
+
+      chunk.forEach(sym => {
+        const tvt = toTvTicker(sym);
+        if (tvt) {
+          symbolLookup[tvt] = sym;
+          tvTickers.push(tvt);
+        }
+      });
+
+      if (tvTickers.length > 0) {
+        batchPromises.push(
+          fetch('https://scanner.tradingview.com/india/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              symbols: { tickers: tvTickers, query: { types: [] } },
+              columns: ['close', 'change', 'change_abs', 'open', 'high', 'low', 'volume', 'description']
+            })
+          })
           .then(res => res.ok ? res.json() : null)
           .then(json => {
-            if (json && json.quotes) {
-              applyLiveQuotesUpdate(json.quotes);
+            if (json && Array.isArray(json.data)) {
+              const quotesObj = {};
+              json.data.forEach(item => {
+                const origSym = symbolLookup[item.s];
+                const d = item.d;
+                if (origSym && d && d[0] !== null && d[0] !== undefined) {
+                  const close = Math.round(Number(d[0]) * 100) / 100;
+                  const changePct = Math.round(Number(d[1]) * 100) / 100;
+                  const changeAbs = Math.round(Number(d[2]) * 100) / 100;
+                  const open = d[3] !== null ? Math.round(Number(d[3]) * 100) / 100 : close;
+                  const high = d[4] !== null ? Math.round(Number(d[4]) * 100) / 100 : close;
+                  const low = d[5] !== null ? Math.round(Number(d[5]) * 100) / 100 : close;
+                  const prevClose = Math.round((close - changeAbs) * 100) / 100;
+                  const desc = d[7] || '';
+                  quotesObj[origSym] = {
+                    symbol: origSym,
+                    ticker: item.s,
+                    price: close,
+                    prev_close: prevClose,
+                    change: changeAbs,
+                    change_pct: changePct,
+                    day_high: high,
+                    day_low: low,
+                    day_open: open,
+                    company_name: desc,
+                    is_positive: changeAbs >= 0
+                  };
+                }
+              });
+              applyLiveQuotesUpdate(quotesObj);
+            } else {
+              throw new Error('TV Scanner fallback');
             }
           })
-          .catch(err => console.warn('[StreamQuotesBatch] Error:', err.message))
-      );
+          .catch(() => {
+            // Graceful fallback to backend API
+            return fetch(`${API_BASE}/api/live_quotes?symbols=${encodeURIComponent(chunk.join(','))}&_t=${Date.now()}`, { cache: 'no-store' })
+              .then(res => res.ok ? res.json() : null)
+              .then(json => {
+                if (json && json.quotes) applyLiveQuotesUpdate(json.quotes);
+              })
+              .catch(() => {});
+          })
+        );
+      }
     }
 
     // Direct Real-Time Quote from TradingView for GIFT NIFTY (NSEIX:NIFTY1!)
@@ -747,6 +832,7 @@ async function streamLiveQuotesForActiveView() {
               day_open: open,
               is_positive: changeAbs >= 0,
               is_gift: true,
+              company_name: 'GIFT Nifty 50 Index Futures',
               source: 'TradingView (NSEIX:NIFTY1!)',
               url: 'https://in.tradingview.com/symbols/NSEIX-NIFTY1!/'
             }
@@ -1825,6 +1911,23 @@ function getAllMarketStocks() {
   if (Array.isArray(window.BREAKOUT_BUYS_DATA)) {
     window.BREAKOUT_BUYS_DATA.forEach(s => addStock(s, 'BREAKOUT'));
   }
+  if (Array.isArray(window.TOP_500_STOCKS_DATA)) {
+    window.TOP_500_STOCKS_DATA.forEach(s => {
+      if (s && (s.cmp || s.price)) {
+        addStock({
+          ...s,
+          symbol: s.symbol || s.code?.replace('NSE:', ''),
+          price: s.cmp || s.price,
+          live_price: s.cmp || s.price,
+          change: s.change || 0,
+          change_pct: s.change_pct || 0,
+          day_high: s.day_high || s.high52,
+          day_low: s.day_low || s.low52,
+          company_name: s.company_name || ''
+        }, 'TOP 500');
+      }
+    });
+  }
 
   return Array.from(map.values());
 }
@@ -1994,6 +2097,7 @@ function renderMoverItem(s, rank, type) {
             ${isRocket ? `<span class="text-[9px] px-1.5 py-0.2 rounded font-black bg-emerald-500/25 text-emerald-300 border border-emerald-400/60 shadow-[0_0_8px_rgba(16,185,129,0.4)] shrink-0 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> ROCKET BUY</span>` : ''}
             ${isImmediate ? `<span class="text-[9px] px-1.5 py-0.2 rounded font-black bg-teal-500/25 text-teal-300 border border-teal-400/60 shadow-[0_0_8px_rgba(20,184,166,0.4)] shrink-0 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span> IMMEDIATE BUY</span>` : ''}
           </div>
+          ${s.company_name ? `<div class="text-[10px] text-slate-400 font-sans truncate max-w-[210px] font-normal" title="${s.company_name}">${s.company_name}</div>` : ''}
           ${valueSubtext}
         </div>
       </div>
@@ -3188,7 +3292,7 @@ function renderTop500Table() {
   const filter = state.top500Filter || 'all';
 
   const filtered = data.filter(s => {
-    const matchesSearch = (s.code && s.code.toLowerCase().includes(query)) || (s.symbol && s.symbol.toLowerCase().includes(query));
+    const matchesSearch = (s.code && s.code.toLowerCase().includes(query)) || (s.symbol && s.symbol.toLowerCase().includes(query)) || (s.company_name && s.company_name.toLowerCase().includes(query));
     if (!matchesSearch) return false;
     if (filter === 'buy') return s.output === 'Best Time for Buy';
     if (filter === 'avoid') return s.output === 'Avoid';
@@ -3231,9 +3335,12 @@ function renderTop500Table() {
     return `
       <tr onclick="openStockModal('${s.symbol}', 'top500')" class="stock-row-pop border-b border-slate-800/80 ${rowBg} font-mono text-[11px] transition-all cursor-pointer group">
         <td class="py-2.5 px-3 text-slate-400">${idx + 1}</td>
-        <td class="py-2.5 px-3 font-sans font-bold text-white flex items-center gap-1.5">
-          <span class="stock-symbol-text transition-colors">${s.symbol}</span>
-          <span class="text-[10px] font-normal text-slate-400 font-mono">(${s.code})</span>
+        <td class="py-2.5 px-3 font-sans">
+          <div class="flex items-center gap-1.5 font-bold text-white">
+            <span class="stock-symbol-text transition-colors">${s.symbol}</span>
+            <span class="text-[10px] font-normal text-slate-400 font-mono">(${s.code})</span>
+          </div>
+          ${s.company_name ? `<div class="text-[10px] text-slate-400 font-normal truncate max-w-[200px]" title="${s.company_name}">${s.company_name}</div>` : ''}
         </td>
         <td class="py-2.5 px-3 text-right">
           <div class="font-bold text-slate-100">${cmpStr}</div>
@@ -3593,6 +3700,7 @@ function renderNifty50Table() {
             <span class="stock-symbol-text font-bold text-white transition-colors">${s.symbol}</span>
             <span class="text-[11px] text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded">${s.code || 'NSE:' + s.symbol}</span>
           </div>
+          ${s.company_name ? `<div class="text-[10px] text-slate-400 truncate max-w-[200px]" title="${s.company_name}">${s.company_name}</div>` : ''}
         </td>
         <td class="py-3 px-4 text-right">
           <div class="font-medium text-slate-100">${priceStr}</div>
@@ -3692,6 +3800,7 @@ function renderNext50Table() {
             <span class="stock-symbol-text font-bold text-white transition-colors">${s.symbol}</span>
             <span class="text-[11px] text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded">${s.code || 'NSE:' + s.symbol}</span>
           </div>
+          ${s.company_name ? `<div class="text-[10px] text-slate-400 truncate max-w-[200px]" title="${s.company_name}">${s.company_name}</div>` : ''}
         </td>
         <td class="py-3 px-4 text-right">
           <div class="font-medium text-slate-100">${priceStr}</div>

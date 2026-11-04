@@ -599,24 +599,84 @@ def fetch_all_live_market_data(max_workers=10):
                 top500 = json.load(f)
 
             live_map = {s['symbol']: s for s in nifty50_data + next50_data + extra_data + breakout_buys if s.get('symbol')}
+            
+            # Fetch real-time TradingView Scanner quotes for ALL top 500 stocks in batches
+            tv_tickers = []
+            for s in top500:
+                sym = (s.get('symbol') or s.get('code', '').replace('NSE:', '')).strip().upper()
+                if sym == 'M&M': tv_tickers.append('BSE:M_M')
+                elif sym == 'BAJAJ-AUTO': tv_tickers.append('NSE:BAJAJ_AUTO')
+                elif sym: tv_tickers.append(f'NSE:{sym}')
+
+            tv_quotes = {}
+            chunk_size = 100
+            for i in range(0, len(tv_tickers), chunk_size):
+                chunk = tv_tickers[i:i + chunk_size]
+                try:
+                    payload = json.dumps({
+                        'symbols': {'tickers': chunk, 'query': {'types': []}},
+                        'columns': ['close', 'change', 'change_abs', 'high', 'low', 'open', 'volume', 'description']
+                    }).encode('utf-8')
+                    req = urllib.request.Request(
+                        'https://scanner.tradingview.com/india/scan',
+                        data=payload,
+                        headers={'User-Agent': 'Mozilla/5.0', 'Content-Type': 'application/json'}
+                    )
+                    with urllib.request.urlopen(req, timeout=6) as resp:
+                        res_tv = json.loads(resp.read().decode('utf-8'))
+                    for row in res_tv.get('data', []):
+                        sym_clean = row['s'].replace('NSE:', '').replace('BSE:', '').replace('_', '&').replace('BAJAJ&AUTO', 'BAJAJ-AUTO')
+                        d = row.get('d', [])
+                        if d and d[0] is not None:
+                            tv_quotes[sym_clean] = {
+                                'price': round(float(d[0]), 2),
+                                'change': round(float(d[2]), 2),
+                                'change_pct': round(float(d[1]), 2),
+                                'high': round(float(d[3]), 2) if d[3] is not None else round(float(d[0]), 2),
+                                'low': round(float(d[4]), 2) if d[4] is not None else round(float(d[0]), 2),
+                                'open': round(float(d[5]), 2) if d[5] is not None else round(float(d[0]), 2),
+                                'description': d[7] if len(d) > 7 else ''
+                            }
+                except Exception as e:
+                    pass
+
             updated_any = False
             for s in top500:
-                sym = s.get('symbol')
-                if sym in live_map:
-                    l = live_map[sym]
-                    p = l.get('price') or l.get('live_price')
-                    if p:
-                        s['cmp'] = p
+                sym = (s.get('symbol') or s.get('code', '').replace('NSE:', '')).strip().upper()
+                q = tv_quotes.get(sym)
+                l = live_map.get(sym)
+                
+                # Priority: TradingView real-time quote, then live_map quote
+                p = (q and q['price']) or (l and (l.get('price') or l.get('live_price')))
+                if p:
+                    s['cmp'] = p
+                    s['price'] = p
+                    if q:
+                        s['change'] = q['change']
+                        s['change_pct'] = q['change_pct']
+                        if q.get('description'): s['company_name'] = q['description']
+                    elif l:
                         s['change'] = l.get('change', s.get('change', 0))
                         s['change_pct'] = l.get('change_pct', s.get('change_pct', 0))
-                        if l.get('day_high'): s['high52'] = max(s.get('high52', 0) or 0, l['day_high'])
-                        if l.get('day_low') and s.get('low52'): s['low52'] = min(s['low52'], l['day_low'])
-                        if s.get('dma20') and s.get('dma50'):
-                            if s['cmp'] >= s['dma20'] and s['cmp'] >= s['dma50'] and (s.get('change_pct', 0) >= 0 or s['cmp'] >= (s.get('dma5') or 0)):
-                                s['output'] = 'Best Time for Buy'
-                            elif s['cmp'] < s['dma20'] and s['cmp'] < s['dma50']:
-                                s['output'] = 'Avoid'
-                        updated_any = True
+
+                    if q and q.get('high'): s['high52'] = max(s.get('high52', 0) or 0, q['high'])
+                    elif l and l.get('day_high'): s['high52'] = max(s.get('high52', 0) or 0, l['day_high'])
+
+                    if q and q.get('low') and s.get('low52'): s['low52'] = min(s['low52'], q['low'])
+                    elif l and l.get('day_low') and s.get('low52'): s['low52'] = min(s['low52'], l['day_low'])
+
+                    if s.get('high52'):
+                        s['discount_from_high'] = round(((s['high52'] - p) / s['high52']) * 100, 2)
+                    if s.get('low52'):
+                        s['buffer_from_low'] = round(((p - s['low52']) / s['low52']) * 100, 2)
+
+                    if s.get('dma20') and s.get('dma50'):
+                        if s['cmp'] >= s['dma20'] and s['cmp'] >= s['dma50'] and (s.get('change_pct', 0) >= 0 or s['cmp'] >= (s.get('dma5') or 0)):
+                            s['output'] = 'Best Time for Buy'
+                        elif s['cmp'] < s['dma20'] and s['cmp'] < s['dma50']:
+                            s['output'] = 'Avoid'
+                    updated_any = True
+
             if updated_any:
                 try:
                     with open(top500_file, 'w', encoding='utf-8') as f:
@@ -688,18 +748,18 @@ def save_and_export_data(result):
     with open(tmp_js, 'w', encoding='utf-8') as f:
         f.write('// Live Market Data Auto-Synchronized from NSE / BSE via live_feed.py\n')
         f.write(f'// Last Updated: {result["timestamp"]}\n\n')
-        f.write('const INDICES_DATA = ' + json.dumps(result.get('indices', []), indent=2, ensure_ascii=False) + ';\n\n')
-        f.write('const ETF_DATA = ' + json.dumps(result.get('etfs', []), indent=2, ensure_ascii=False) + ';\n\n')
-        f.write('const BREAKOUT_BUYS_DATA = ' + json.dumps(result.get('breakout_buys', []), indent=2, ensure_ascii=False) + ';\n\n')
-        f.write('const TOP_500_STOCKS_DATA = ' + json.dumps(result.get('top500', []), indent=2, ensure_ascii=False) + ';\n\n')
-        f.write('const NIFTY_50_DATA = ' + json.dumps(result['nifty50'], indent=2, ensure_ascii=False) + ';\n\n')
-        f.write('const NIFTY_NEXT_50_DATA = ' + json.dumps(result['next50'], indent=2, ensure_ascii=False) + ';\n\n')
-        f.write('const EXTRA_CONSTITUENTS_DATA = ' + json.dumps(result.get('extra_constituents', []), indent=2, ensure_ascii=False) + ';\n\n')
-        f.write('const CALC_NIFTY_50 = ' + json.dumps(result['calc_nifty50'], indent=2, ensure_ascii=False) + ';\n\n')
-        f.write('const CALC_NIFTY_NEXT_50 = ' + json.dumps(result['calc_next50'], indent=2, ensure_ascii=False) + ';\n\n')
-        f.write('const CALC_BREAKOUT = ' + json.dumps(result.get('calc_breakout', {}), indent=2, ensure_ascii=False) + ';\n\n')
-        f.write('const MARKET_DATES_DATA = ' + json.dumps(market_dates, indent=2, ensure_ascii=False) + ';\n\n')
-        f.write('const STRATEGY_INFO = ' + json.dumps(strategy_info, indent=2, ensure_ascii=False) + ';\n')
+        f.write('var INDICES_DATA = window.INDICES_DATA = ' + json.dumps(result.get('indices', []), ensure_ascii=False) + ';\n\n')
+        f.write('var ETF_DATA = window.ETF_DATA = ' + json.dumps(result.get('etfs', []), ensure_ascii=False) + ';\n\n')
+        f.write('var BREAKOUT_BUYS_DATA = window.BREAKOUT_BUYS_DATA = ' + json.dumps(result.get('breakout_buys', []), ensure_ascii=False) + ';\n\n')
+        f.write('var TOP_500_STOCKS_DATA = window.TOP_500_STOCKS_DATA = ' + json.dumps(result.get('top500', []), ensure_ascii=False) + ';\n\n')
+        f.write('var NIFTY_50_DATA = window.NIFTY_50_DATA = ' + json.dumps(result['nifty50'], ensure_ascii=False) + ';\n\n')
+        f.write('var NIFTY_NEXT_50_DATA = window.NIFTY_NEXT_50_DATA = ' + json.dumps(result['next50'], ensure_ascii=False) + ';\n\n')
+        f.write('var EXTRA_CONSTITUENTS_DATA = window.EXTRA_CONSTITUENTS_DATA = ' + json.dumps(result.get('extra_constituents', []), ensure_ascii=False) + ';\n\n')
+        f.write('var CALC_NIFTY_50 = window.CALC_NIFTY_50 = ' + json.dumps(result['calc_nifty50'], ensure_ascii=False) + ';\n\n')
+        f.write('var CALC_NIFTY_NEXT_50 = window.CALC_NIFTY_NEXT_50 = ' + json.dumps(result['calc_next50'], ensure_ascii=False) + ';\n\n')
+        f.write('var CALC_BREAKOUT = window.CALC_BREAKOUT = ' + json.dumps(result.get('calc_breakout', {}), ensure_ascii=False) + ';\n\n')
+        f.write('var MARKET_DATES_DATA = window.MARKET_DATES_DATA = ' + json.dumps(market_dates, ensure_ascii=False) + ';\n\n')
+        f.write('var STRATEGY_INFO = window.STRATEGY_INFO = ' + json.dumps(strategy_info, ensure_ascii=False) + ';\n')
     os.replace(tmp_js, js_path)
 
     print(f"Updated {json_path} and {js_path} atomically and successfully!")

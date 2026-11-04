@@ -550,93 +550,113 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
 
             quotes_map = {}
             if sym_list:
-                from live_feed import resolve_ticker
-                def _fetch_one_quote(s):
+                tv_symbol_map = {
+                    'NIFTY': 'NSE:NIFTY', 'NIFTY 50': 'NSE:NIFTY', '^NSEI': 'NSE:NIFTY',
+                    'BANK NIFTY': 'NSE:BANKNIFTY', '^NSEBANK': 'NSE:BANKNIFTY',
+                    'SENSEX': 'BSE:SENSEX', '^BSESN': 'BSE:SENSEX',
+                    'NIFTY IT': 'NSE:CNXIT', '^CNXIT': 'NSE:CNXIT',
+                    'INDIA VIX': 'NSE:INDIAVIX', '^INDIAVIX': 'NSE:INDIAVIX',
+                    'M&M': 'BSE:M_M', 'BAJAJ-AUTO': 'NSE:BAJAJ_AUTO',
+                    'TATAMOTORS': 'NSE:TMPV', 'LTIM': 'NSE:LTM', 'ZOMATO': 'NSE:ETERNAL'
+                }
+                def to_tv_ticker(s):
                     clean = (s or '').strip().upper()
-                    if clean in ['GIFT NIFTY', '^GIFTNIFTY', 'GIFT']:
-                        # Direct Real-Time Quote from TradingView (NSEIX:NIFTY1!)
-                        # https://in.tradingview.com/symbols/NSEIX-NIFTY1!/
-                        endpoints = [
-                            'https://scanner.tradingview.com/futures/scan',
-                            'https://scanner.tradingview.com/global/scan'
-                        ]
-                        payload = json.dumps({
+                    if clean in tv_symbol_map: return tv_symbol_map[clean]
+                    if clean in ['GIFT NIFTY', '^GIFTNIFTY', 'GIFT']: return 'NSEIX:NIFTY1!'
+                    if clean.startswith('^') or ':' in clean: return None
+                    return f'NSE:{clean}'
+
+                # 1. TradingView Batch Scan for Equities & Indices
+                tv_tickers_map = {}
+                for s in sym_list[:120]:
+                    if s in ['GIFT NIFTY', '^GIFTNIFTY', 'GIFT']:
+                        continue
+                    tvt = to_tv_ticker(s)
+                    if tvt:
+                        tv_tickers_map[tvt] = s
+
+                if tv_tickers_map:
+                    try:
+                        tv_payload = json.dumps({
+                            'symbols': {'tickers': list(tv_tickers_map.keys()), 'query': {'types': []}},
+                            'columns': ['close', 'change', 'change_abs', 'open', 'high', 'low', 'volume', 'description']
+                        }).encode('utf-8')
+                        req_tv = urllib.request.Request(
+                            'https://scanner.tradingview.com/india/scan',
+                            data=tv_payload,
+                            headers={'User-Agent': 'Mozilla/5.0', 'Content-Type': 'application/json'}
+                        )
+                        with urllib.request.urlopen(req_tv, timeout=5) as resp:
+                            res_tv = json.loads(resp.read().decode('utf-8'))
+                        for item in res_tv.get('data', []):
+                            orig_sym = tv_tickers_map.get(item['s'])
+                            d = item.get('d', [])
+                            if orig_sym and d and d[0] is not None:
+                                close = round(float(d[0]), 2)
+                                chg_pct = round(float(d[1]), 2)
+                                chg_abs = round(float(d[2]), 2)
+                                high = round(float(d[4]), 2) if len(d) > 4 and d[4] is not None else close
+                                low = round(float(d[5]), 2) if len(d) > 5 and d[5] is not None else close
+                                open_p = round(float(d[3]), 2) if len(d) > 3 and d[3] is not None else close
+                                prev_close = round(close - chg_abs, 2)
+                                desc = d[7] if len(d) > 7 else ''
+                                quotes_map[orig_sym] = {
+                                    'symbol': orig_sym,
+                                    'ticker': item['s'],
+                                    'price': close,
+                                    'prev_close': prev_close,
+                                    'change': chg_abs,
+                                    'change_pct': chg_pct,
+                                    'day_high': high,
+                                    'day_low': low,
+                                    'day_open': open_p,
+                                    'volume': int(d[6]) if len(d) > 6 and d[6] is not None else 0,
+                                    'company_name': desc,
+                                    'is_positive': chg_abs >= 0,
+                                    'source': 'TradingView Real-Time'
+                                }
+                    except Exception as e:
+                        print('TV Batch Scan error in start_app:', e)
+
+                # 2. GIFT NIFTY
+                if any(s in ['GIFT NIFTY', '^GIFTNIFTY', 'GIFT'] for s in sym_list):
+                    try:
+                        g_payload = json.dumps({
                             'symbols': {'tickers': ['NSEIX:NIFTY1!'], 'query': {'types': []}},
                             'columns': ['close', 'change', 'change_abs', 'open', 'high', 'low', 'volume', 'description']
                         }).encode('utf-8')
-                        headers_tv = {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                            'Content-Type': 'application/json'
+                        req_g = urllib.request.Request(
+                            'https://scanner.tradingview.com/futures/scan',
+                            data=g_payload,
+                            headers={'User-Agent': 'Mozilla/5.0', 'Content-Type': 'application/json'}
+                        )
+                        with urllib.request.urlopen(req_g, timeout=4) as resp_g:
+                            res_g = json.loads(resp_g.read().decode('utf-8'))
+                        row = res_g.get('data', [])[0]['d']
+                        close = round(float(row[0]), 2)
+                        chg_pct = round(float(row[1]), 2)
+                        chg_abs = round(float(row[2]), 2)
+                        g_data = {
+                            'symbol': 'GIFT NIFTY',
+                            'ticker': '^GIFTNIFTY',
+                            'tv_symbol': 'NSEIX:NIFTY1!',
+                            'price': close,
+                            'prev_close': round(close - chg_abs, 2),
+                            'change': chg_abs,
+                            'change_pct': chg_pct,
+                            'day_high': round(float(row[4]), 2),
+                            'day_low': round(float(row[5]), 2),
+                            'day_open': round(float(row[3]), 2),
+                            'volume': int(row[6]) if row[6] is not None else 0,
+                            'is_positive': chg_abs >= 0,
+                            'is_gift': True,
+                            'company_name': 'GIFT Nifty 50 Index Futures',
+                            'source': 'TradingView (NSEIX:NIFTY1!)'
                         }
-                        for ep in endpoints:
-                            try:
-                                import urllib.request
-                                req_tv = urllib.request.Request(ep, data=payload, headers=headers_tv)
-                                with urllib.request.urlopen(req_tv, timeout=3) as r_tv:
-                                    res_tv = json.loads(r_tv.read().decode('utf-8'))
-                                row = res_tv.get('data', [])[0]['d']
-                                close = round(float(row[0]), 2)
-                                change_pct = round(float(row[1]), 2)
-                                change_abs = round(float(row[2]), 2)
-                                day_open = round(float(row[3]), 2)
-                                day_high = round(float(row[4]), 2)
-                                day_low = round(float(row[5]), 2)
-                                volume = int(row[6]) if row[6] is not None else 35000
-                                prev_close = round(close - change_abs, 2)
-                                return s, {
-                                    'symbol': 'GIFT NIFTY',
-                                    'ticker': '^GIFTNIFTY',
-                                    'tv_symbol': 'NSEIX:NIFTY1!',
-                                    'price': close,
-                                    'prev_close': prev_close,
-                                    'change': change_abs,
-                                    'change_pct': change_pct,
-                                    'day_high': day_high,
-                                    'day_low': day_low,
-                                    'day_open': day_open,
-                                    'volume': volume,
-                                    'is_positive': change_abs >= 0,
-                                    'is_gift': True,
-                                    'source': 'TradingView (NSEIX:NIFTY1!)',
-                                    'url': 'https://in.tradingview.com/symbols/NSEIX-NIFTY1!/'
-                                }
-                            except Exception:
-                                pass
-
-                    ticker = resolve_ticker(s)
-                    try:
-                        import urllib.request
-                        u = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(ticker)}?interval=5m&range=1d"
-                        req = urllib.request.Request(u, headers={'User-Agent': 'Mozilla/5.0'})
-                        with urllib.request.urlopen(req, timeout=3) as resp:
-                            res_json = json.loads(resp.read().decode())
-                            m = res_json['chart']['result'][0]['meta']
-                            p = m.get('regularMarketPrice') or 0
-                            prev = m.get('chartPreviousClose') or p
-                            chg = round(p - prev, 2)
-                            chg_pct = round(((p - prev) / prev) * 100, 2) if prev else 0.0
-                            return s, {
-                                'symbol': s,
-                                'ticker': ticker,
-                                'price': round(float(p), 2),
-                                'prev_close': round(float(prev), 2),
-                                'change': chg,
-                                'change_pct': chg_pct,
-                                'day_high': round(float(m.get('regularMarketDayHigh') or p), 2),
-                                'day_low': round(float(m.get('regularMarketDayLow') or p), 2),
-                                'day_open': round(float(m.get('regularMarketOpen') or p), 2),
-                                'volume': int(m.get('regularMarketVolume') or 0)
-                            }
-                    except Exception:
-                        return s, None
-
-                from concurrent.futures import ThreadPoolExecutor, as_completed
-                with ThreadPoolExecutor(max_workers=25) as ex:
-                    futures = [ex.submit(_fetch_one_quote, s) for s in sym_list[:60]]
-                    for f in as_completed(futures):
-                        sym, qdata = f.result()
-                        if qdata:
-                            quotes_map[sym] = qdata
+                        quotes_map['GIFT NIFTY'] = g_data
+                        quotes_map['^GIFTNIFTY'] = g_data
+                    except Exception as e:
+                        pass
 
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
