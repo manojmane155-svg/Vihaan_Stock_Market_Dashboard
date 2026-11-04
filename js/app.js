@@ -1864,18 +1864,16 @@ function renderMarketMovers() {
     return (chg >= 4.0 || surge >= 7.0);
   };
 
-  // 1. ROCKET BUY Stocks in front (highest % change first)
-  const topGainers = [...valid].sort((a, b) => {
-    const rA = isRocketBuyStock(a) ? 1 : 0;
-    const rB = isRocketBuyStock(b) ? 1 : 0;
-    if (rB !== rA) return rB - rA; // All ROCKET BUY stocks strictly in front!
-    return (b.change_pct || 0) - (a.change_pct || 0);
-  }).slice(0, 8);
+  // 1. ROCKET BUY Stocks (high momentum surge, sorted highest % change first)
+  const rocketBuys = [...valid].filter(s => isRocketBuyStock(s)).sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0));
 
-  // 2. Top Losers: Lowest % Change
+  // 2. TOP GAINERS: Ranked strictly by highest % Gain (Top 8, matching screenshot)
+  const topGainers = [...valid].sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0)).slice(0, 8);
+
+  // 3. Top Losers: Lowest % Change
   const topLosers = [...valid].sort((a, b) => (a.change_pct || 0) - (b.change_pct || 0)).slice(0, 8);
 
-  // 3. Top Intraday Gainers: Strongest surge from today's low
+  // 4. Top Intraday Gainers: Strongest surge from today's low
   const topIntraday = [...valid]
     .filter(s => s.surge_from_low !== undefined)
     .sort((a, b) => {
@@ -1884,11 +1882,21 @@ function renderMarketMovers() {
     })
     .slice(0, 8);
 
-  // Render Top Gainers List (ROCKET BUY)
+  // Render ROCKET BUY List
+  const rocketContainer = document.getElementById('rocket-buy-list');
+  if (rocketContainer) {
+    if (rocketBuys.length === 0) {
+      rocketContainer.innerHTML = '<div class="text-xs text-slate-500 py-4 text-center">No ROCKET BUY stocks in current session</div>';
+    } else {
+      rocketContainer.innerHTML = rocketBuys.slice(0, 8).map((s, idx) => renderMoverItem(s, idx + 1, 'rocket')).join('');
+    }
+  }
+
+  // Render Top Gainers List (Kept below ROCKET BUY as requested)
   const gainersContainer = document.getElementById('top-gainers-list');
   if (gainersContainer) {
     if (topGainers.length === 0) {
-      gainersContainer.innerHTML = '<div class="text-xs text-slate-500 py-4 text-center">No ROCKET BUY or gainer data available</div>';
+      gainersContainer.innerHTML = '<div class="text-xs text-slate-500 py-4 text-center">No gainer data available</div>';
     } else {
       gainersContainer.innerHTML = topGainers.map((s, idx) => renderMoverItem(s, idx + 1, 'gainer')).join('');
     }
@@ -1921,7 +1929,7 @@ function renderMoverItem(s, rank, type) {
   const priceFormatted = s.price ? s.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--';
   const changeFormatted = `${chgSign}₹${Math.abs(s.change).toFixed(2)}`;
   const pctFormatted = `${chgSign}${s.change_pct?.toFixed(2)}%`;
-  const isRocket = (type === 'gainer') && ((s.change_pct || 0) >= 4.0 || (s.surge_from_low || 0) >= 7.0);
+  const isRocket = (type === 'rocket');
 
   let rankBadgeBg = 'bg-slate-800 text-slate-400 group-hover:bg-cyan-500 group-hover:text-slate-950 font-bold';
   if (rank === 1) rankBadgeBg = 'bg-amber-400 text-slate-950 font-black shadow-sm';
@@ -1933,6 +1941,7 @@ function renderMoverItem(s, rank, type) {
   else if (s.primary_tag === 'NIFTY IT') tagBg = 'bg-purple-950/80 text-purple-300 border-purple-700/60';
   else if (s.primary_tag === 'SENSEX') tagBg = 'bg-amber-950/80 text-amber-300 border-amber-700/60';
   else if (s.primary_tag === 'NIFTY 50') tagBg = 'bg-cyan-950/80 text-cyan-300 border-cyan-700/60';
+  else if (s.primary_tag === 'NEXT 50') tagBg = 'bg-slate-800/80 text-slate-300 border-slate-700/60';
 
   let valueSubtext = '';
   if (type === 'intraday') {
@@ -1942,7 +1951,7 @@ function renderMoverItem(s, rank, type) {
   }
 
   const colorClass = isPos ? 'text-emerald-400' : 'text-rose-400';
-  const moverTypeClass = type === 'loser' ? 'mover-loser' : (type === 'intraday' ? 'mover-intraday' : 'mover-gainer');
+  const moverTypeClass = type === 'loser' ? 'mover-loser' : (type === 'intraday' ? 'mover-intraday' : (type === 'rocket' ? 'mover-rocket' : 'mover-gainer'));
 
   return `
     <div onclick="openStockModal('${s.symbol}')" class="mover-card-pop ${moverTypeClass} p-2.5 rounded-xl bg-slate-900/90 border border-slate-800/80 flex items-center justify-between gap-2.5 group cursor-pointer select-none">
