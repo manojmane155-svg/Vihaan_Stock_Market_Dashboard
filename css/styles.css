@@ -245,6 +245,12 @@ body {
   background-color: rgba(6, 78, 59, 0.35) !important;
 }
 
+.mover-card-pop.mover-immediate:hover {
+  border-color: rgba(20, 184, 166, 0.9) !important;
+  box-shadow: 0 10px 25px -3px rgba(20, 184, 166, 0.45), 0 0 25px rgba(20, 184, 166, 0.35) !important;
+  background-color: rgba(13, 148, 136, 0.25) !important;
+}
+
 .mover-card-pop.mover-gainer:hover {
   border-color: rgba(16, 185, 129, 0.8) !important;
   box-shadow: 0 10px 25px -3px rgba(16, 185, 129, 0.35), 0 0 20px rgba(16, 185, 129, 0.25) !important;

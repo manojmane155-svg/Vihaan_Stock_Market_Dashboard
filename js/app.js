@@ -1867,13 +1867,26 @@ function renderMarketMovers() {
   // 1. ROCKET BUY Stocks (high momentum surge, sorted highest % change first)
   const rocketBuys = [...valid].filter(s => isRocketBuyStock(s)).sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0));
 
-  // 2. TOP GAINERS: Ranked strictly by highest % Gain (Top 8, matching screenshot)
+  // 2. Sheet 1: RSI Nifty 50 Immediate Buy Stocks (all Immediate Buy stocks from Sheet 1)
+  const isImmediateBuyRsi = (s) => {
+    const chg = (s.change_pct !== undefined && s.change_pct !== null) ? s.change_pct : (s.change || 0);
+    const rsi = (s.rsi !== null && s.rsi !== undefined && s.rsi > 0) ? s.rsi : null;
+    return (chg >= 2.0) || s.status === 'Start Buying As Par Rules' || (rsi !== null && rsi <= 35);
+  };
+  const nifty50Stocks = (window.NIFTY_50_DATA || []).filter(s => s.price && s.price > 0 && s.change_pct !== null && s.change_pct !== undefined);
+  const immediateBuys = [...nifty50Stocks].filter(s => isImmediateBuyRsi(s)).sort((a, b) => {
+    const chgA = (a.change_pct !== undefined && a.change_pct !== null) ? a.change_pct : (a.change || 0);
+    const chgB = (b.change_pct !== undefined && b.change_pct !== null) ? b.change_pct : (b.change || 0);
+    return chgB - chgA; // Highest profit % first!
+  });
+
+  // 3. TOP GAINERS: Ranked strictly by highest % Gain (Top 8, matching screenshot)
   const topGainers = [...valid].sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0)).slice(0, 8);
 
-  // 3. Top Losers: Lowest % Change
+  // 4. Top Losers: Lowest % Change
   const topLosers = [...valid].sort((a, b) => (a.change_pct || 0) - (b.change_pct || 0)).slice(0, 8);
 
-  // 4. Top Intraday Gainers: Strongest surge from today's low
+  // 5. Top Intraday Gainers: Strongest surge from today's low
   const topIntraday = [...valid]
     .filter(s => s.surge_from_low !== undefined)
     .sort((a, b) => {
@@ -1889,6 +1902,19 @@ function renderMarketMovers() {
       rocketContainer.innerHTML = '<div class="text-xs text-slate-500 py-4 text-center">No ROCKET BUY stocks in current session</div>';
     } else {
       rocketContainer.innerHTML = rocketBuys.slice(0, 8).map((s, idx) => renderMoverItem(s, idx + 1, 'rocket')).join('');
+    }
+  }
+
+  // Render IMMEDIATE BUY List (From Sheet 1: RSI Nifty 50)
+  const immediateContainer = document.getElementById('immediate-buy-list');
+  if (immediateContainer) {
+    if (immediateBuys.length === 0) {
+      immediateContainer.innerHTML = '<div class="text-xs text-slate-500 py-4 text-center">No Immediate Buy stocks currently active in Sheet 1</div>';
+    } else {
+      immediateContainer.innerHTML = immediateBuys.slice(0, 8).map((s, idx) => {
+        const item = { ...s, primary_tag: 'NIFTY 50' };
+        return renderMoverItem(item, idx + 1, 'immediate');
+      }).join('');
     }
   }
 
@@ -1930,6 +1956,7 @@ function renderMoverItem(s, rank, type) {
   const changeFormatted = `${chgSign}₹${Math.abs(s.change).toFixed(2)}`;
   const pctFormatted = `${chgSign}${s.change_pct?.toFixed(2)}%`;
   const isRocket = (type === 'rocket');
+  const isImmediate = (type === 'immediate');
 
   let rankBadgeBg = 'bg-slate-800 text-slate-400 group-hover:bg-cyan-500 group-hover:text-slate-950 font-bold';
   if (rank === 1) rankBadgeBg = 'bg-amber-400 text-slate-950 font-black shadow-sm';
@@ -1946,12 +1973,15 @@ function renderMoverItem(s, rank, type) {
   let valueSubtext = '';
   if (type === 'intraday') {
     valueSubtext = `<div class="text-[10px] font-bold text-amber-400 font-mono">Surge: +${s.surge_from_low}% from Low</div>`;
+  } else if (type === 'immediate') {
+    const rsiDisplay = (s.rsi !== null && s.rsi !== undefined) ? s.rsi : '--';
+    valueSubtext = `<div class="text-[10px] text-cyan-300 font-mono font-semibold">14D RSI: ${rsiDisplay} &bull; L: ₹${s.day_low?.toLocaleString('en-IN') || '--'}</div>`;
   } else {
     valueSubtext = `<div class="text-[10px] text-slate-400 font-mono">L: ₹${s.day_low?.toLocaleString('en-IN')} &bull; H: ₹${s.day_high?.toLocaleString('en-IN')}</div>`;
   }
 
   const colorClass = isPos ? 'text-emerald-400' : 'text-rose-400';
-  const moverTypeClass = type === 'loser' ? 'mover-loser' : (type === 'intraday' ? 'mover-intraday' : (type === 'rocket' ? 'mover-rocket' : 'mover-gainer'));
+  const moverTypeClass = type === 'loser' ? 'mover-loser' : (type === 'intraday' ? 'mover-intraday' : (type === 'rocket' ? 'mover-rocket' : (type === 'immediate' ? 'mover-immediate' : 'mover-gainer')));
 
   return `
     <div onclick="openStockModal('${s.symbol}')" class="mover-card-pop ${moverTypeClass} p-2.5 rounded-xl bg-slate-900/90 border border-slate-800/80 flex items-center justify-between gap-2.5 group cursor-pointer select-none">
@@ -1962,6 +1992,7 @@ function renderMoverItem(s, rank, type) {
             <span class="font-black text-white text-xs truncate group-hover:text-cyan-300 transition-colors">${s.symbol}</span>
             <span class="text-[9px] px-1.5 py-0.2 rounded border font-semibold shrink-0 ${tagBg}">${s.primary_tag}</span>
             ${isRocket ? `<span class="text-[9px] px-1.5 py-0.2 rounded font-black bg-emerald-500/25 text-emerald-300 border border-emerald-400/60 shadow-[0_0_8px_rgba(16,185,129,0.4)] shrink-0 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> ROCKET BUY</span>` : ''}
+            ${isImmediate ? `<span class="text-[9px] px-1.5 py-0.2 rounded font-black bg-teal-500/25 text-teal-300 border border-teal-400/60 shadow-[0_0_8px_rgba(20,184,166,0.4)] shrink-0 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span> IMMEDIATE BUY</span>` : ''}
           </div>
           ${valueSubtext}
         </div>
@@ -3489,6 +3520,50 @@ function renderNifty50Table() {
     const chgB = (b.change_pct !== undefined && b.change_pct !== null) ? b.change_pct : (b.change || 0);
     return chgB - chgA; // Highest profit % first!
   });
+
+  // Render Dedicated IMMEDIATE BUY Showcase at the top of Sheet 1
+  const immCardsContainer = document.getElementById('nifty50-immediate-buy-cards');
+  const immCountBadge = document.getElementById('nifty50-immediate-count-badge');
+  const allNifty50 = window.NIFTY_50_DATA || [];
+  const topImmediateBuys = allNifty50.filter(s => isImmediateBuyRsi(s)).sort((a, b) => {
+    const chgA = (a.change_pct !== undefined && a.change_pct !== null) ? a.change_pct : (a.change || 0);
+    const chgB = (b.change_pct !== undefined && b.change_pct !== null) ? b.change_pct : (b.change || 0);
+    return chgB - chgA;
+  });
+
+  if (immCountBadge) {
+    immCountBadge.innerText = `${topImmediateBuys.length} Stocks Triggered`;
+  }
+  if (immCardsContainer) {
+    if (topImmediateBuys.length === 0) {
+      immCardsContainer.innerHTML = '<div class="col-span-full text-xs text-slate-500 py-3 text-center">No immediate buy signals currently active in Nifty 50</div>';
+    } else {
+      immCardsContainer.innerHTML = topImmediateBuys.map((s, idx) => {
+        const chgSign = (s.change >= 0) ? '+' : '';
+        const pctFormatted = `${chgSign}${(s.change_pct || 0).toFixed(2)}%`;
+        const priceFormatted = s.price ? `₹${s.price.toLocaleString('en-IN')}` : '--';
+        const rsiVal = s.rsi !== null && s.rsi !== undefined ? s.rsi : '--';
+        return `
+          <div onclick="openStockModal('${s.symbol}', 'nifty50')" class="mover-card-pop p-3 rounded-xl bg-slate-900/95 border border-teal-500/40 hover:border-teal-400 hover:shadow-[0_0_15px_rgba(20,184,166,0.3)] transition-all cursor-pointer group flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${idx === 0 ? 'bg-amber-400 text-slate-950' : (idx === 1 ? 'bg-slate-300 text-slate-950' : (idx === 2 ? 'bg-amber-700 text-amber-100' : 'bg-slate-800 text-slate-300'))}">${idx + 1}</span>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <span class="font-black text-white text-xs truncate group-hover:text-cyan-300 transition-colors">${s.symbol}</span>
+                  <span class="text-[9px] px-1.5 py-0.2 rounded font-black bg-teal-500/25 text-teal-300 border border-teal-400/60 shadow-sm shrink-0">IMMEDIATE BUY</span>
+                </div>
+                <div class="text-[10px] text-slate-400 font-mono">14D RSI: <strong class="text-cyan-300">${rsiVal}</strong> &bull; L: ₹${s.day_low?.toLocaleString('en-IN') || '--'}</div>
+              </div>
+            </div>
+            <div class="text-right shrink-0">
+              <div class="text-xs font-black text-white font-mono group-hover:text-cyan-200 transition-colors">${priceFormatted}</div>
+              <div class="text-[11px] font-black text-emerald-400 font-mono">${pctFormatted}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
 
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-400">No stocks matching your search or filters.</td></tr>`;
