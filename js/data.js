@@ -238903,6 +238903,6 @@ const CALC_BREAKOUT = {
   ]
 };
 
-const MARKET_DATES_DATA = [];
+var MARKET_DATES_DATA = window.MARKET_DATES_DATA = [];
 
-const STRATEGY_INFO = {};
+var STRATEGY_INFO = window.STRATEGY_INFO = {};
