@@ -592,9 +592,16 @@ function applyLiveQuotesUpdate(quotes) {
         s.price = q.price;
         s.change = q.change;
         s.change_pct = q.change_pct;
+        if (q.day_high) {
+          s.day_high = q.day_high;
+          s.high52 = Math.max(s.high52 || 0, q.day_high);
+        }
+        if (q.day_low) {
+          s.day_low = q.day_low;
+          if (s.low52) s.low52 = Math.min(s.low52, q.day_low);
+        }
+        if (q.day_open) s.day_open = q.day_open;
         if (q.company_name) s.company_name = q.company_name;
-        if (q.day_high) s.high52 = Math.max(s.high52 || 0, q.day_high);
-        if (q.day_low && s.low52) s.low52 = Math.min(s.low52, q.day_low);
         if (s.high52 && s.high52 > 0) {
           s.discount_from_high = Math.round(((s.high52 - q.price) / s.high52) * 10000) / 100;
         }
@@ -678,27 +685,17 @@ async function streamLiveQuotesForActiveView() {
       getWatchlistSymbols().forEach(s => symbolsSet.add(s.toUpperCase()));
     }
 
-    // 6. Active Tab Specific Priority Symbols (e.g. visible Top 500 or ETF Shop)
-    if (state.currentTab === 'top500') {
-      const q = (state.top500SearchQuery || '').toLowerCase().trim();
-      const filt = state.top500Filter || 'all';
-      const visible = (window.TOP_500_STOCKS_DATA || []).filter(s => {
-        const matches = !q || (s.code && s.code.toLowerCase().includes(q)) || (s.symbol && s.symbol.toLowerCase().includes(q)) || (s.company_name && s.company_name.toLowerCase().includes(q));
-        if (!matches) return false;
-        if (filt === 'buy') return s.output === 'Best Time for Buy';
-        if (filt === 'avoid') return s.output === 'Avoid';
-        return true;
-      }).slice(0, 80);
-      visible.forEach(s => {
-        const sym = (s.symbol || s.code?.replace('NSE:', '') || '').toUpperCase();
-        if (sym) symbolsSet.add(sym);
-      });
-    } else if (state.currentTab === 'etf_shop') {
-      (window.ETF_DATA || []).forEach(e => {
-        const sym = (e.symbol || e.ticker || '').toUpperCase();
-        if (sym) symbolsSet.add(sym);
-      });
-    }
+    // 6. ALL Top 500 Stocks (so all tabs, market movers, screener, top500 have live streaming prices)
+    (window.TOP_500_STOCKS_DATA || []).forEach(s => {
+      const sym = (s.symbol || s.code?.replace('NSE:', '') || '').toUpperCase();
+      if (sym) symbolsSet.add(sym);
+    });
+
+    // 7. ALL ETFs
+    (window.ETF_DATA || []).forEach(e => {
+      const sym = (e.symbol || e.ticker || '').toUpperCase();
+      if (sym) symbolsSet.add(sym);
+    });
 
     const symArray = Array.from(symbolsSet);
     if (symArray.length === 0) return;
@@ -712,18 +709,21 @@ async function streamLiveQuotesForActiveView() {
       'INDIA VIX': 'NSE:INDIAVIX', '^INDIAVIX': 'NSE:INDIAVIX',
       'M&M': 'BSE:M_M', 'BAJAJ-AUTO': 'NSE:BAJAJ_AUTO',
       'TATAMOTORS': 'NSE:TMPV', 'LTIM': 'NSE:LTM', 'ZOMATO': 'NSE:ETERNAL',
-      'BEL': 'NSE:BEL', 'BHEL': 'NSE:BHEL', 'SHRIRAMFIN': 'NSE:SHRIRAMFIN'
+      'BEL': 'NSE:BEL', 'BHEL': 'NSE:BHEL', 'SHRIRAMFIN': 'NSE:SHRIRAMFIN',
+      'NAM-INDIA': 'NSE:NAM_INDIA', 'M&MFIN': 'BSE:M_MFIN', 'ARE&M': 'BSE:ARE_M',
+      'J&KBANK': 'BSE:J_KBANK', 'L&TFH': 'NSE:LTF', 'MCDOWELL-N': 'NSE:UNITDSPR'
     };
     const toTvTicker = (sym) => {
       const clean = (sym || '').trim().toUpperCase();
       if (tvSymbolMap[clean]) return tvSymbolMap[clean];
       if (clean === 'GIFT NIFTY' || clean === '^GIFTNIFTY' || clean === 'GIFT') return null;
       if (clean.startsWith('^') || clean.includes(':')) return null;
-      return `NSE:${clean}`;
+      const sanitized = clean.replace('&', '_').replace('-', '_');
+      return `NSE:${sanitized}`;
     };
 
-    // Direct Browser Calls to TradingView India Scanner (CORS enabled, sub-second responses)
-    const chunkSize = 80;
+    // Direct Browser Calls to TradingView India Scanner (CORS simple request with text/plain, sub-second responses)
+    const chunkSize = 100;
     const batchPromises = [];
     for (let i = 0; i < symArray.length; i += chunkSize) {
       const chunk = symArray.slice(i, i + chunkSize);
@@ -742,7 +742,7 @@ async function streamLiveQuotesForActiveView() {
         batchPromises.push(
           fetch('https://scanner.tradingview.com/india/scan', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
               symbols: { tickers: tvTickers, query: { types: [] } },
               columns: ['close', 'change', 'change_abs', 'open', 'high', 'low', 'volume', 'description']
@@ -801,7 +801,7 @@ async function streamLiveQuotesForActiveView() {
     batchPromises.push(
       fetch('https://scanner.tradingview.com/futures/scan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
           symbols: { tickers: ['NSEIX:NIFTY1!'], query: { types: [] } },
           columns: ['close', 'change', 'change_abs', 'open', 'high', 'low', 'volume', 'description']
@@ -1874,8 +1874,8 @@ function getAllMarketStocks() {
     const sym = item.symbol.trim().toUpperCase();
     if (!map.has(sym)) {
       const price = item.price || item.cmp || item.live_price || item.sheet_cmp || item.close || 0;
-      const low = (item.day_low !== undefined && item.day_low !== null) ? item.day_low : (item.low !== undefined && item.low !== null ? item.low : (item.low52 || price));
-      const high = (item.day_high !== undefined && item.day_high !== null) ? item.day_high : (item.high !== undefined && item.high !== null ? item.high : (item.high52 || price));
+      const low = (item.day_low !== undefined && item.day_low !== null) ? item.day_low : (item.low !== undefined && item.low !== null ? item.low : price);
+      const high = (item.day_high !== undefined && item.day_high !== null) ? item.day_high : (item.high !== undefined && item.high !== null ? item.high : price);
       const surgeFromLow = (low && low > 0 && price >= low) ? +(((price - low) / low) * 100).toFixed(2) : 0;
       const rangeSpread = (high - low);
       const rangePos = rangeSpread > 0 ? Math.min(100, Math.max(0, +(((price - low) / rangeSpread) * 100).toFixed(1))) : 50;
@@ -1921,8 +1921,8 @@ function getAllMarketStocks() {
           live_price: s.cmp || s.price,
           change: s.change || 0,
           change_pct: s.change_pct || 0,
-          day_high: s.day_high || s.high52,
-          day_low: s.day_low || s.low52,
+          day_high: (s.day_high !== undefined && s.day_high !== null) ? s.day_high : (s.cmp || s.price),
+          day_low: (s.day_low !== undefined && s.day_low !== null) ? s.day_low : (s.cmp || s.price),
           company_name: s.company_name || ''
         }, 'TOP 500');
       }

@@ -14,7 +14,16 @@ const TV_SYMBOL_MAP = {
   'BAJAJ-AUTO': 'NSE:BAJAJ_AUTO',
   'TATAMOTORS': 'NSE:TMPV',
   'LTIM': 'NSE:LTM',
-  'ZOMATO': 'NSE:ETERNAL'
+  'ZOMATO': 'NSE:ETERNAL',
+  'BEL': 'NSE:BEL',
+  'BHEL': 'NSE:BHEL',
+  'SHRIRAMFIN': 'NSE:SHRIRAMFIN',
+  'NAM-INDIA': 'NSE:NAM_INDIA',
+  'M&MFIN': 'BSE:M_MFIN',
+  'ARE&M': 'BSE:ARE_M',
+  'J&KBANK': 'BSE:J_KBANK',
+  'L&TFH': 'NSE:LTF',
+  'MCDOWELL-N': 'NSE:UNITDSPR'
 };
 
 const YAHOO_OVERRIDE_MAP = {
@@ -37,14 +46,14 @@ function toTvTicker(sym) {
   if (TV_SYMBOL_MAP[clean]) return TV_SYMBOL_MAP[clean];
   if (clean === 'GIFT NIFTY' || clean === '^GIFTNIFTY' || clean === 'GIFT') return 'NSEIX:NIFTY1!';
   if (clean.startsWith('^') || clean.includes(':')) return null;
-  return NSE:;
+  return `NSE:${clean}`;
 }
 
 function toYahooTicker(sym) {
   const clean = (sym || '').trim().toUpperCase();
   if (YAHOO_OVERRIDE_MAP[clean]) return YAHOO_OVERRIDE_MAP[clean];
   if (clean.startsWith('^') || clean.endsWith('.NS') || clean.endsWith('.BO')) return clean;
-  return ${clean}.NS;
+  return `${clean}.NS`;
 }
 
 // 1. Fetch GIFT NIFTY directly from TradingView Futures Scanner
@@ -111,7 +120,7 @@ async function fetchGiftNifty() {
 async function fetchYahooFallback(symbol) {
   const ticker = toYahooTicker(symbol);
   try {
-    const url = https://query1.finance.yahoo.com/v8/finance/chart/?interval=5m&range=1d;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=5m&range=1d`;
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
     });
